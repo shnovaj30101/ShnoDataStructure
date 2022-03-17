@@ -356,6 +356,8 @@ void tree_init(RBTree** tp, int is_root) {
     t->data = -1;
     if (is_root) {
         t->black_num = 1;
+    } else {
+        t->black_num = 0;
     }
 };
 
