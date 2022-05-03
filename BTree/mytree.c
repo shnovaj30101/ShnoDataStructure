@@ -21,10 +21,10 @@ int _btree_binary_search(int arr[], int start_id, int end_id, int data) {
     int middle_id = (start_id+end_id)/2;
 
     if (arr[middle_id] > data) {
-        _btree_binary_search(arr, start_id, middle_id-1, data);
+        return _btree_binary_search(arr, start_id, middle_id-1, data);
     }
     else {
-        _btree_binary_search(arr, middle_id+1, end_id, data);
+        return _btree_binary_search(arr, middle_id+1, end_id, data);
     }
 }
 
@@ -54,16 +54,159 @@ void insert(BTree** root, BTree* t, int data) {
 
 void _split_child(BTree** root, BTree* t) {
     if (t->is_root) {
-        BTree* new_node;
-        tree_init(&new_node, degree, 1);
+        BTree* new_root_node;
+        tree_init(&new_root_node, t->degree, 1);
+        new_root_node->is_leaf = FALSE;
+        BTree* split_node;
+        tree_init(&split_node, t->degree, 0);
 
+        insert(root, new_root_node, t->key_list[t->degree-1]);
+
+        new_root_node->child_list[0] = t;
+        t->parent = new_root_node;
+        t->parent_child_id = 0;
+        new_root_node->child_list[1] = split_node;
+        split_node->parent = new_root_node;
+        split_node->parent_child_id = 1;
+        new_root_node->child_num = 2;
+
+        for (int i = 0 ; i < t->degree-1 ; i++) {
+            split_node->key_list[i] = t->key_list[t->degree+i];
+        }
+        split_node->key_num = t->degree-1;
+
+        for (int i = 0 ; i < t->degree ; i++) {
+            split_node->child_list[i] = t->child_list[t->degree+i];
+        }
+        split_node->child_num = t->degree;
+
+        t->key_num = t->degree-1;
+        t->child_num = t->degree;
+
+        *root = new_root_node;
 
     } else {
+        BTree* split_node;
+        tree_init(&split_node, t->degree, 0);
 
+        for (int i = t->parent->key_num-1 ; i >= t->parent_child_id ; i--) {
+            t->parent->key_list[i+1] = t->parent->key_list[i];
+            t->parent->child_list[i+2] = t->parent->child_list[i+1];
+        }
+        t->parent->key_list[t->parent_child_id] = t->key_list[t->degree];
+        t->parent->child_list[t->parent_child_id+1] = split_node;
+        t->parent->key_num += 1;
+        t->parent->child_num += 1;
+
+        split_node->parent = t->parent;
+        split_node->parent_child_id = t->parent_child_id+1;
+
+        for (int i = 0 ; i < t->degree-1 ; i++) {
+            split_node->key_list[i] = t->key_list[t->degree+i];
+        }
+        split_node->key_num = t->degree-1;
+
+        for (int i = 0 ; i < t->degree ; i++) {
+            split_node->child_list[i] = t->child_list[t->degree+i];
+        }
+        split_node->child_num = t->degree;
+
+        t->key_num = t->degree-1;
+        t->child_num = t->degree;
+
+        if (t->parent->key_num == 2*t->degree-1) {
+            _split_child(root, t->parent);
+        }
     }
 }
 
 int delete_node(BTree** root, BTree* t, int data) {
+    int target_id = _btree_binary_search(t->key_list, 0, t->key_num-1, data);
+    target_id -= 1;
+
+    if (t->key_list[target_id] == data) {
+        if (!t->is_leaf) {
+            BTree* left_right_most = _get_right_most_descendant(t->child_list[target_id]);
+
+            t->key_list[target_id] = left_right_most->key_list[left_right_most->key_num-1];
+            left_right_most->key_num -= 1;
+
+            if (left_right_most->key_num < left_right_most->degree-1) {
+                _handle_key_shortage(root, left_right_most);
+            }
+        } else {
+            for (int i = target_id ; i < t->key_num-1 ; i++) {
+                t->key_list[i] = t->key_list[i+1];
+            }
+            t->key_num -= 1;
+
+            if (t->key_num < t->degree-1) {
+                _handle_key_shortage(root, t);
+            }
+        }
+
+        return TRUE;
+    } else {
+        if (t->is_leaf) {
+            return FALSE;
+        }
+        return delete_node(root, t->child_list[target_id+1], data);
+    }
+}
+
+BTree* _get_left_most_descendant(BTree* t) {
+    BTree* output = t;
+
+    while (!output->is_leaf) {
+        output = output->child_list[0];
+    }
+
+    return output;
+}
+
+BTree* _get_right_most_descendant(BTree* t) {
+    BTree* output = t;
+
+    while (!output->is_leaf) {
+        output = output->child_list[output->child_num-1];
+    }
+
+    return output;
+}
+
+void _handle_key_shortage(BTree** root, BTree* t) {
+    if (t->is_root) {
+        if (t->key_num == 0) {
+            t->child_list[0]->parent = NULL;
+            t->child_list[0]->parent_child_id = -1;
+            free(t);
+        }
+        return;
+    }
+
+    if (t->parent_child_id > 0 &&
+        t->parent->child_list[t->parent_child_id-1]->key_num > t->degree-1) {
+        BTree* left_sibling = t->parent->child_list[t->parent_child_id-1];
+        for (int i=t->key_num-1 ; i>=0 ; i--) {
+            t->key_list[i+1] = t->key_list[i];
+        }
+        t->key_num += 1;
+        t->key_list[0] = t->parent->key_list[t->parent_child_id-1];
+        t->parent->key_list[t->parent_child_id-1] = left_sibling->key_list[left_sibling->key_num-1];
+        left_sibling->key_num -= 1;
+    } else if (t->parent_child_id < t->parent->key_num-1 &&
+        t->parent->child_list[t->parent_child_id+1]->key_num > t->degree-1) {
+        BTree* right_sibling = t->parent->child_list[t->parent_child_id+1];
+        t->key_list[t->key_num] = t->parent->key_list[t->parent_child_id];
+        t->key_num += 1;
+        t->parent->key_list[t->parent_child_id] = right_sibling->key_list[0];
+        for (int i=0 ; i < right_sibling->key_num-1 ; i++) {
+            t->key_list[i] = t->key_list[i+1];
+        }
+        right_sibling->key_num -= 1;
+    } else {
+        // todo
+    }
 }
 
 void traversal(BTree* t) {

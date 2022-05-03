@@ -33,6 +33,9 @@ void check_valid(BTree*, int);
 void _check_valid(BTree*, int, int*);
 void print_node_info(BTree*);
 int delete_node(BTree**, BTree*, int);
+void _handle_key_shortage(BTree**, BTree*);
+BTree* _get_left_most_descendant(BTree*);
+BTree* _get_right_most_descendant(BTree*);
 
 #endif
 
