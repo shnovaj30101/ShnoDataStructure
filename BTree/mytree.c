@@ -186,10 +186,12 @@ BTree* _get_right_most_descendant(BTree* t) {
 
 void _handle_key_shortage(BTree** root, BTree* t) {
     if (t->is_root) {
-        if (t->key_num == 0) {
+        if (t->child_num == 1) {
             t->child_list[0]->parent = NULL;
             t->child_list[0]->parent_child_id = -1;
-            free(t);
+            t->child_list[0]->is_root = TRUE;
+            *root = t->child_list[0];
+            tree_free(t, 0);
         }
         return;
     }
@@ -204,57 +206,90 @@ void _handle_key_shortage(BTree** root, BTree* t) {
         t->key_list[0] = t->parent->key_list[t->parent_child_id-1];
         t->parent->key_list[t->parent_child_id-1] = left_sibling->key_list[left_sibling->key_num-1];
         left_sibling->key_num -= 1;
-    } else if (t->parent_child_id < t->parent->key_num-1 &&
+
+        if (!t->is_leaf) {
+            for (int i=t->child_num-1; i >= 0  ; i--) {
+                t->child_list[i]->parent_child_id = i+1;
+                t->child_list[i+1] = t->child_list[i];
+            }
+            t->child_num += 1;
+
+            left_sibling->child_list[left_sibling->child_num-1]->parent = t;
+            left_sibling->child_list[left_sibling->child_num-1]->parent_child_id = 0;
+            t->child_list[0] = left_sibling->child_list[left_sibling->child_num-1];
+            left_sibling->child_num -= 1;
+        }
+    } else if (t->parent_child_id < t->parent->child_num-1 &&
         t->parent->child_list[t->parent_child_id+1]->key_num > t->degree-1) {
         BTree* right_sibling = t->parent->child_list[t->parent_child_id+1];
-        t->key_list[t->key_num] = t->parent->key_list[t->parent_child_id];
-        t->key_num += 1;
+        t->key_list[t->key_num++] = t->parent->key_list[t->parent_child_id];
         t->parent->key_list[t->parent_child_id] = right_sibling->key_list[0];
         for (int i=0 ; i < right_sibling->key_num-1 ; i++) {
-            t->key_list[i] = t->key_list[i+1];
+            right_sibling->key_list[i] = right_sibling->key_list[i+1];
         }
         right_sibling->key_num -= 1;
+
+        if (!t->is_leaf) {
+            right_sibling->child_list[0]->parent = t;
+            right_sibling->child_list[0]->parent_child_id = t->child_num;
+            t->child_list[t->child_num++] = right_sibling->child_list[0];
+
+            for (int i=0 ; i < right_sibling->child_num-1 ; i++) {
+                right_sibling->child_list[i+1]->parent_child_id = i;
+                right_sibling->child_list[i] = right_sibling->child_list[i+1];
+            }
+            right_sibling->child_num -= 1;
+        }
     } else {
+        BTree *left, *right;
         if (t->parent_child_id > 0) {
             BTree* left_sibling = t->parent->child_list[t->parent_child_id-1];
-            _merge_child(root, left_sibling, t);
+            left = left_sibling;
+            right = t;
         } else {
             BTree* right_sibling = t->parent->child_list[t->parent_child_id+1];
-            _merge_child(root, t, right_sibling);
+            left = t;
+            right = right_sibling;
         }
 
-        if (t->parent->key_num < t->degree-1) {
-            _handle_key_shortage(root, t->parent);
+        _merge_child(root, left, right);
+        if (left->parent && left->parent->key_num < left->degree-1) {
+            _handle_key_shortage(root, left->parent);
         }
     }
 }
 
 void _merge_child(BTree** root, BTree* left, BTree* right) {
-    left->key_list[left->key_num++ - 1] = left->parent->key_list[left->parent_child_id];
+    left->key_list[left->key_num++] = left->parent->key_list[left->parent_child_id];
 
     for (int i = 0 ; i < right->key_num ; i++) {
-        left->key_list[left->key_num++ - 1] = right->key_list[i];
+        left->key_list[left->key_num++] = right->key_list[i];
     }
 
     if (!left->is_leaf) {
         for (int i = 0 ; i < right->child_num ; i++) {
             right->child_list[i]->parent = left;
-            right->child_list[i]->parent_child_id = left->child_num - 1;
-            left->child_list[left->child_num++ - 1] = right->child_list[i];
+            right->child_list[i]->parent_child_id = left->child_num;
+            left->child_list[left->child_num++] = right->child_list[i];
         }
     }
 
     tree_free(right, 0);
 
-    for (int i = left->parent_child_id + 1 ; i < left->parent->key_num - 1 ; i++ ) {
+    for (int i = left->parent_child_id + 1 ; i < left->parent->key_num ; i++ ) {
         left->parent->key_list[i-1] = left->parent->key_list[i];
     }
     left->parent->key_num -= 1;
 
-    for (int i = left->parent_child_id + 2 ; i < left->parent->child_num - 1 ; i++ ) {
+    for (int i = left->parent_child_id + 2 ; i < left->parent->child_num ; i++ ) {
+        left->parent->child_list[i]->parent_child_id = i-1;
         left->parent->child_list[i-1] = left->parent->child_list[i];
     }
     left->parent->child_num -= 1;
+
+    if (left->parent->key_num < left->parent->degree-1) {
+        _handle_key_shortage(root, left->parent);
+    }
 }
 
 void traversal(BTree* t) {
@@ -373,7 +408,7 @@ void _check_valid(BTree* t, int is_root, int* tree_height) {
             print_node_info(t);
             exit(-1);
         }
-        if (t->key_num < 1) {
+        if (t->key_num < 1 && t->child_num > 0) {
             printf("root key_num < 1\n");
             print_node_info(t);
             exit(-1);
@@ -399,14 +434,14 @@ void _check_valid(BTree* t, int is_root, int* tree_height) {
             exit(-1);
         }
         if (t->key_num < t->degree-1) {
-            printf("key_num < degree-1\n");
+            printf("key_num(%d) < degree-1(%d)\n", t->key_num, t->degree-1);
             print_node_info(t);
             exit(-1);
         }
 
         if (!t->is_leaf) {
             if (t->child_num < t->degree) {
-                printf("child_num < degree\n");
+                printf("child_num(%d) < degree(%d)\n", t->child_num, t->degree);
                 print_node_info(t);
                 exit(-1);
             }
@@ -574,8 +609,10 @@ void tree_free(BTree* t, int free_child) {
 
     free(t->key_list);
 
-    for (int i = 0 ; i < t->child_num; i++) {
-        tree_free(t->child_list[i], 1);
+    if (free_child) {
+        for (int i = 0 ; i < t->child_num; i++) {
+            tree_free(t->child_list[i], 1);
+        }
     }
 
     free(t->child_list);

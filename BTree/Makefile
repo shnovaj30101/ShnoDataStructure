@@ -23,5 +23,8 @@ debug3: myrandom.o mytree.o
 debug4: myrandom.o mytree.o
 	$(CC) $(CFLAGS) -DDEBUG4 -DCHECK main.c myrandom.o mytree.o -o main
 
+debug5: myrandom.o mytree.o
+	$(CC) $(CFLAGS) -DDEBUG5 -DCHECK main.c myrandom.o mytree.o -o main
+
 clean:
 	rm *.o *.so *.a
