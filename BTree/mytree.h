@@ -26,9 +26,10 @@ typedef struct btree {
 void insert(BTree**, BTree*, int);
 int _btree_binary_search(int [], int, int, int);
 void _split_child(BTree**, BTree*);
+void _merge_child(BTree**, BTree*, BTree*);
 void traversal(BTree*);
 void tree_init(BTree**, int, int);
-void tree_free(BTree*);
+void tree_free(BTree*, int);
 void check_valid(BTree*, int);
 void _check_valid(BTree*, int, int*);
 void print_node_info(BTree*);

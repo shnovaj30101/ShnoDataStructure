@@ -8,14 +8,20 @@ CFLAGS=-Wall -g
 all: myrandom.o mytree.o
 	$(CC) $(CFLAGS) main.c myrandom.o mytree.o -o main
 
+check: myrandom.o mytree.o
+	$(CC) $(CFLAGS) -DCHECK main.c myrandom.o mytree.o -o main
+
 debug1: myrandom.o mytree.o
-	$(CC) $(CFLAGS) -DDEBUG1 main.c myrandom.o mytree.o -o main
+	$(CC) $(CFLAGS) -DDEBUG1 -DCHECK main.c myrandom.o mytree.o -o main
 
 debug2: myrandom.o mytree.o
-	$(CC) $(CFLAGS) -DDEBUG2 main.c myrandom.o mytree.o -o main
+	$(CC) $(CFLAGS) -DDEBUG2 -DCHECK main.c myrandom.o mytree.o -o main
 
 debug3: myrandom.o mytree.o
-	$(CC) $(CFLAGS) -DDEBUG3 main.c myrandom.o mytree.o -o main
+	$(CC) $(CFLAGS) -DDEBUG3 -DCHECK main.c myrandom.o mytree.o -o main
+
+debug4: myrandom.o mytree.o
+	$(CC) $(CFLAGS) -DDEBUG4 -DCHECK main.c myrandom.o mytree.o -o main
 
 clean:
 	rm *.o *.so *.a
