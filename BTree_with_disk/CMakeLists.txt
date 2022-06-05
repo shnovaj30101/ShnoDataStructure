@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.10)
+project(ShnoDatabase)
+
+find_package(fmt)
+find_package(nlohmann_json)
+
+add_executable(main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+target_compile_features(main PUBLIC cxx_std_17)
+target_link_libraries(main fmt::fmt)
+target_link_libraries(main nlohmann_json::nlohmann_json)
+
+#add_executable(debug1_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+#target_compile_definitions(debug1_main PUBLIC -DDEBUG1)
+#target_compile_features(debug1_main PUBLIC cxx_std_17)
+#target_link_libraries(debug1_main fmt::fmt)
+#target_link_libraries(debug1_main nlohmann_json::nlohmann_json)
+
+#add_executable(debug2_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+#target_compile_definitions(debug2_main PUBLIC -DDEBUG2)
+#target_compile_features(debug2_main PUBLIC cxx_std_17)
+#target_link_libraries(debug2_main fmt::fmt)
+#target_link_libraries(debug2_main nlohmann_json::nlohmann_json)
+
+#add_executable(debug3_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+#target_compile_definitions(debug3_main PUBLIC -DDEBUG3)
+#target_compile_features(debug3_main PUBLIC cxx_std_17)
+#target_link_libraries(debug3_main fmt::fmt)
+#target_link_libraries(debug3_main nlohmann_json::nlohmann_json)
+
+#add_executable(debug4_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+#target_compile_definitions(debug4_main PUBLIC -DDEBUG4)
+#target_compile_features(debug4_main PUBLIC cxx_std_17)
+#target_link_libraries(debug4_main fmt::fmt)
+#target_link_libraries(debug4_main nlohmann_json::nlohmann_json)
+
+#add_executable(debug5_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+#target_compile_definitions(debug5_main PUBLIC -DDEBUG5)
+#target_compile_features(debug5_main PUBLIC cxx_std_17)
+#target_link_libraries(debug5_main fmt::fmt)
+#target_link_libraries(debug5_main nlohmann_json::nlohmann_json)
