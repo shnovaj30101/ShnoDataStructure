@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <regex>
 #include <iostream>
 #include "nlohmann/json.hpp"
 #include "fmt/format.h"
@@ -18,7 +19,14 @@ using namespace std;
 #define DEFAULT_VALUE_MAX 128
 
 void parse_command(string command) {
-    if (command == "create table;") { // 創建一個 table
+    regex create_table_regex();
+    regex use_table_regex();
+    regex clear_table_regex();
+    regex insert_file_regex();
+    regex remove_data_regex();
+    regex query_data_regex();
+
+    if () { // 創建一個 table
     } else if () { // 進入一個 table
     } else if () { // 清除一個 table
     } else if () { // 插入一個檔案內部的 json 資料
