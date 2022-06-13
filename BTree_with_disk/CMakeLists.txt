@@ -4,7 +4,7 @@ project(ShnoDatabase)
 find_package(fmt)
 find_package(nlohmann_json)
 
-add_executable(main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
+add_executable(main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp command.cpp command.hpp)
 target_compile_features(main PUBLIC cxx_std_17)
 target_link_libraries(main fmt::fmt)
 target_link_libraries(main nlohmann_json::nlohmann_json)
