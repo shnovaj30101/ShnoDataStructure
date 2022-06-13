@@ -16,10 +16,10 @@
 #include "nlohmann/json.hpp"
 #include "fmt/format.h"
 
-using json = nlohmann::json;
-namespace fs = std::filesystem;
 using namespace fmt;
 using namespace std;
+using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 map<string, regex> cmd_regex_map = {
     {"create_table", regex("create\\s+table\\s+(\\w+)")},

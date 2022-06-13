@@ -10,10 +10,10 @@
 #include "nlohmann/json.hpp"
 #include "fmt/format.h"
 
-namespace fs = std::filesystem;
 using namespace std;
 using namespace fmt;
 using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 DbSystem db_system = DbSystem();
 
