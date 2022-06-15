@@ -20,7 +20,7 @@ class BtreeNode;
 class DbSystem;
 class Table;
 
-extern DbSystem db_system;
+extern DbSystem* db_system_ptr;
 
 class DbSystem {
     public:
@@ -39,8 +39,8 @@ class Table {
         Table(const string& table_name); // use table 時使用
         ~Table();
     private:
-        string name;
-        vector<Btree*> btree_list;
+        string table_name;
+        map<string, Btree*> IndexMap;
 };
 
 class RecData {
@@ -68,6 +68,7 @@ class Btree {
         fstream root_file_handle;
         string root_dirname;
         queue<BtreeNode*> node_buffer;
+        map<string, BtreeNode*> NodeMap;
 };
 
 class BtreeNode {

@@ -21,30 +21,39 @@ using namespace std;
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
+class CmdQuit:public exception {
+    public:
+        const char * what() const throw() {
+            return "Command line quit";
+        }
+};
+
 map<string, regex> cmd_regex_map = {
-    {"create_table", regex("create\\s+table\\s+(\\w+)")},
-    //{"create_table2", regex("create\\s+table\\s+(\\w+)\\s+(\\(.+?\\))")},
-    {"use_table", regex("use\\s+(\\w+)")},
-    {"insert_file", regex("insert\\s+(\\w+)")},
-    {"remove_data", regex("remove\\s+(\\w+)")},
-    {"query_data", regex("find\\s+(\\w+)")},
-    {"quit", regex("find\\s+(\\w+)")}, ///
+    {"create_table", regex("\\s*create\\s+table\\s+(\\w+)\\s*")},
+    //{"create_table2", regex("\\s*create\\s+table\\s+(\\w+)\\s+(\\(.+?\\))\\s*")},
+    {"use_table", regex("\\s*use\\s+(\\w+)\\s*")},
+    {"insert_file", regex("\\s*insert\\s+(\\w+)\\s*")},
+    {"remove_data", regex("\\s*remove\\s+(\\w+)\\s*")},
+    {"query_data", regex("\\s*find\\s+(\\w+)\\s*")},
+    {"quit", regex("\\s*quit\\s*")},
 };
 
 void parse_command(const string& command) {
     smatch m;
     if (regex_match(command, m, cmd_regex_map["create_table"])) { // 創建一個 table
-        create_table(&m);
+        create_table(m);
     //} else if (regex_match(command, m, cmd_regex_map["create_table2"])) { // 進入一個 table
-        //create_table(&m);
+        //create_table(m);
     } else if (regex_match(command, m, cmd_regex_map["use_table"])) { // 進入一個 table
-        use_table(&m);
+        use_table(m);
     } else if (regex_match(command, m, cmd_regex_map["insert_file"])) { // 清除一個 table
-        insert_file(&m);
+        insert_file(m);
     } else if (regex_match(command, m, cmd_regex_map["remove_data"])) { // 插入一個檔案內部的 json 資料
-        remove_data(&m);
+        remove_data(m);
     } else if (regex_match(command, m, cmd_regex_map["query_data"])) { // 刪除一筆資料
-        query_data(&m);
+        query_data(m);
+    } else if (regex_match(command, m, cmd_regex_map["quit"])) {
+        throw CmdQuit();
     } else if (command.length() == 0) {
         print("");
     } else {
@@ -55,14 +64,18 @@ void parse_command(const string& command) {
 int main(int argc, char* argv[]) {
     string command;
 
-    db_system.init();
+    db_system_ptr->init();
 
     cout << "ShnoDatabase$ ";
     while (getline(cin, command)) {
-        parse_command(command);
+        try {
+            parse_command(command);
+        } catch (CmdQuit &e) {
+            break;
+        }
         cout << "ShnoDatabase$ ";
     }
 
-    cout << endl;
+    delete db_system_ptr;
 }
 

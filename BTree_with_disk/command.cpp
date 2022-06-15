@@ -13,28 +13,31 @@ using namespace std;
 using namespace fmt;
 using json = nlohmann::json;
 
-void create_table(smatch *mp) {
+void create_table(const smatch& m) {
     string field_str = DEFAULT_FIELD;
 
-    smatch m = *mp;
     string table_name = m.str(1);
 
-    db_system.create_table(table_name, field_str);
+    try {
+        db_system_ptr->create_table(table_name, field_str);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
 }
 
-void create_table2(smatch *mp) {
+void create_table2(const smatch& m) {
 
 }
 
-void use_table(smatch *mp) {
+void use_table(const smatch& m) {
 }
 
-void insert_file(smatch *mp) {
+void insert_file(const smatch& m) {
 }
 
-void remove_data(smatch *mp) {
+void remove_data(const smatch& m) {
 }
 
-void query_data(smatch *mp) {
+void query_data(const smatch& m) {
 }
 

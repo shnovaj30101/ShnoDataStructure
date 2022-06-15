@@ -9,12 +9,12 @@
 
 using namespace std;
 
-void create_table(smatch *mp);
-void create_table2(smatch *mp);
-void use_table(smatch *mp);
-void insert_file(smatch *mp);
-void remove_data(smatch *mp);
-void query_data(smatch *mp);
+void create_table(const smatch& m);
+void create_table2(const smatch& m);
+void use_table(const smatch& m);
+void insert_file(const smatch& m);
+void remove_data(const smatch& m);
+void query_data(const smatch& m);
 
 #endif
 
