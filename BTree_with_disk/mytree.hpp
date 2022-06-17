@@ -31,6 +31,7 @@ class DbSystem {
         void use_table(const string& table_name);
     private:
         map<string, Table*> TableMap;
+        Table* now_table;
 };
 
 class Table {
@@ -38,9 +39,14 @@ class Table {
         Table(const string& table_name, const string& field_str); // create table 時使用
         Table(const string& table_name); // use table 時使用
         ~Table();
+
+        void fill_field_info(const string& field_name, const string& field_type);
+        void write_table_info();
+        void read_table_info();
     private:
         string table_name;
         map<string, Btree*> IndexMap;
+        vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
 };
 
 class RecData {

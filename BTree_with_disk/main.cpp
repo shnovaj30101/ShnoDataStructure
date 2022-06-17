@@ -1,4 +1,3 @@
-
 #include "myrandom.hpp"
 #include "mytree.hpp"
 #include "command.hpp"
@@ -29,13 +28,13 @@ class CmdQuit:public exception {
 };
 
 map<string, regex> cmd_regex_map = {
-    {"create_table", regex("\\s*create\\s+table\\s+(\\w+)\\s*")},
-    //{"create_table2", regex("\\s*create\\s+table\\s+(\\w+)\\s+(\\(.+?\\))\\s*")},
-    {"use_table", regex("\\s*use\\s+(\\w+)\\s*")},
-    {"insert_file", regex("\\s*insert\\s+(\\w+)\\s*")},
-    {"remove_data", regex("\\s*remove\\s+(\\w+)\\s*")},
-    {"query_data", regex("\\s*find\\s+(\\w+)\\s*")},
-    {"quit", regex("\\s*quit\\s*")},
+    {"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
+    //{"create_table2", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
+    {"use_table", regex("^\\s*use\\s+(\\w+?)\\s*$")},
+    {"insert_file", regex("^\\s*insert\\s+(\\S+?)\\s*$")},
+    {"remove_data", regex("^\\s*remove\\s+(.+?)\\s*$")},
+    {"query_data", regex("^\\s*find\\s+(.+?)\\s*$")},
+    {"quit", regex("^\\s*quit\\s*$")},
 };
 
 void parse_command(const string& command) {

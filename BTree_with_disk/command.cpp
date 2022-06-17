@@ -30,6 +30,13 @@ void create_table2(const smatch& m) {
 }
 
 void use_table(const smatch& m) {
+    string table_name = m.str(1);
+
+    try {
+        db_system_ptr->use_table(table_name);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
 }
 
 void insert_file(const smatch& m) {
