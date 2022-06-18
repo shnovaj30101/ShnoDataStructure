@@ -39,7 +39,24 @@ void use_table(const smatch& m) {
     }
 }
 
+void create_index(const smatch& m) {
+    string index_name = m.str(1);
+
+    try {
+        db_system_ptr->create_index(index_name);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
+}
+
 void insert_file(const smatch& m) {
+    string file_name = m.str(1);
+
+    try {
+        db_system_ptr->insert_file(file_name);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
 }
 
 void remove_data(const smatch& m) {

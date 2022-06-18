@@ -29,6 +29,8 @@ class DbSystem {
         void init();
         void create_table(const string& table_name, const string& field_str);
         void use_table(const string& table_name);
+        void create_index(const string& index_name);
+        void insert_file(const string& file_name);
     private:
         map<string, Table*> TableMap;
         Table* now_table;

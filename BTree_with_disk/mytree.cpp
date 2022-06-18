@@ -56,6 +56,18 @@ void DbSystem::use_table(const string& table_name) {
     now_table = TableMap[table_name];
 }
 
+void DbSystem::create_index(const string& index_name) {
+}
+
+void DbSystem::insert_file(const string& file_name) {
+    fs::path file_path(field_name.c_str());
+
+    if (!fs::exists(file_path)) {
+        throw runtime_error(format("file {} not exist", file_name));
+    }
+
+}
+
 Table::Table(const string& _table_name, const string& _field_str) {
     string table_dirname = format("./{}/{}", ROOT_DIRNAME, _table_name);
 
@@ -155,19 +167,26 @@ Table::Table(const string& _table_name) {
         throw runtime_error(format("table {} info fn not exist", _table_name));
     }
 
+    table_name = _table_name;
+
     read_table_info();
 }
 
 void Table::read_table_info() {
     const string& table_info_fn = format("./{}/{}/meta_info", ROOT_DIRNAME, table_name);
+    const string field_name_type_pat = "^\\s*(\\w+?)\\s+(\\w+?)\\s*(\\d+?)\\s*$";
+    regex field_name_type_regex(field_name_type_pat);
+    smatch m;
 
-    ifstream f(table_info_fn);
+    fstream f(table_info_fn, ios::in);
 
     if (f.is_open()) {
-        cout << "lala"<<endl; ///
         string line;
         while (getline(f, line)) {
-            cout << line;
+            if (!regex_match(line, m, field_name_type_regex)) {
+                throw runtime_error(format("Invaild line {} in {}", line, table_info_fn));
+            }
+            field_info.push_back(tuple<string, string, int>(m.str(1), m.str(2), atoi(m.str(3).c_str())));
         }
         f.close();
     }

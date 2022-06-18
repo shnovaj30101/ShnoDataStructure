@@ -31,6 +31,7 @@ map<string, regex> cmd_regex_map = {
     {"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
     //{"create_table2", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
     {"use_table", regex("^\\s*use\\s+(\\w+?)\\s*$")},
+    {"create_index", regex("^\\s*create\\s+index\\s+(\\w+?)\\s*$")},
     {"insert_file", regex("^\\s*insert\\s+(\\S+?)\\s*$")},
     {"remove_data", regex("^\\s*remove\\s+(.+?)\\s*$")},
     {"query_data", regex("^\\s*find\\s+(.+?)\\s*$")},
@@ -41,10 +42,12 @@ void parse_command(const string& command) {
     smatch m;
     if (regex_match(command, m, cmd_regex_map["create_table"])) { // 創建一個 table
         create_table(m);
-    //} else if (regex_match(command, m, cmd_regex_map["create_table2"])) { // 進入一個 table
+    //} else if (regex_match(command, m, cmd_regex_map["create_table2"])) { // 創建一個 table 2
         //create_table(m);
     } else if (regex_match(command, m, cmd_regex_map["use_table"])) { // 進入一個 table
         use_table(m);
+    } else if (regex_match(command, m, cmd_regex_map["create_index"])) { // 創建一個 index
+        create_index(m);
     } else if (regex_match(command, m, cmd_regex_map["insert_file"])) { // 清除一個 table
         insert_file(m);
     } else if (regex_match(command, m, cmd_regex_map["remove_data"])) { // 插入一個檔案內部的 json 資料
