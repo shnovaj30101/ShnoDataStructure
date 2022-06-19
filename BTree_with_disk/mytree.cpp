@@ -45,8 +45,8 @@ void DbSystem::init() {
     }
 }
 
-void DbSystem::create_table(const string& table_name, const string& field_str) {
-    TableMap[table_name] = new Table(table_name, field_str);
+void DbSystem::create_table(const string& table_name, const string& field_str, const string& pk) {
+    TableMap[table_name] = new Table(table_name, field_str, pk);
 }
 
 void DbSystem::use_table(const string& table_name) {
@@ -60,7 +60,7 @@ void DbSystem::create_index(const string& index_name) {
 }
 
 void DbSystem::insert_file(const string& file_name) {
-    fs::path file_path(field_name.c_str());
+    fs::path file_path(file_name.c_str());
 
     if (!fs::exists(file_path)) {
         throw runtime_error(format("file {} not exist", file_name));
@@ -68,7 +68,7 @@ void DbSystem::insert_file(const string& file_name) {
 
 }
 
-Table::Table(const string& _table_name, const string& _field_str) {
+Table::Table(const string& _table_name, const string& _field_str, const string& _pk) {
     string table_dirname = format("./{}/{}", ROOT_DIRNAME, _table_name);
 
     if (fs::is_directory(table_dirname)) {
@@ -105,7 +105,14 @@ Table::Table(const string& _table_name, const string& _field_str) {
 
     fs::create_directory(table_dirname);
 
+    pk = _pk;
+
+    create_primary_index();
     write_table_info();
+}
+
+void Table::create_primary_index() {
+
 }
 
 void Table::fill_field_info(const string& field_name, const string& raw_field_type) {
@@ -150,6 +157,8 @@ void Table::write_table_info() {
             f << get<0>(*it) << " " << get<1>(*it) << " " << get<2>(*it) << endl;
         }
 
+        f << "@PRIMARY_KEY " << pk << endl;
+
         f.close();
     }
 }
@@ -176,6 +185,8 @@ void Table::read_table_info() {
     const string& table_info_fn = format("./{}/{}/meta_info", ROOT_DIRNAME, table_name);
     const string field_name_type_pat = "^\\s*(\\w+?)\\s+(\\w+?)\\s*(\\d+?)\\s*$";
     regex field_name_type_regex(field_name_type_pat);
+    const string primary_key_pat = "^\\s*@PRIMARY_KEY\\s+(\\w+?)\\s*$";
+    regex primary_key_regex(primary_key_pat);
     smatch m;
 
     fstream f(table_info_fn, ios::in);
@@ -183,7 +194,11 @@ void Table::read_table_info() {
     if (f.is_open()) {
         string line;
         while (getline(f, line)) {
-            if (!regex_match(line, m, field_name_type_regex)) {
+            if (regex_match(line, m, primary_key_regex)) {
+                pk = m.str(1);
+                continue;
+            }
+            else if (!regex_match(line, m, field_name_type_regex)) {
                 throw runtime_error(format("Invaild line {} in {}", line, table_info_fn));
             }
             field_info.push_back(tuple<string, string, int>(m.str(1), m.str(2), atoi(m.str(3).c_str())));

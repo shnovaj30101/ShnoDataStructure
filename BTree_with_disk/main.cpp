@@ -29,7 +29,7 @@ class CmdQuit:public exception {
 
 map<string, regex> cmd_regex_map = {
     {"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
-    //{"create_table2", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
+    //{"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
     {"use_table", regex("^\\s*use\\s+(\\w+?)\\s*$")},
     {"create_index", regex("^\\s*create\\s+index\\s+(\\w+?)\\s*$")},
     {"insert_file", regex("^\\s*insert\\s+(\\S+?)\\s*$")},
@@ -40,9 +40,9 @@ map<string, regex> cmd_regex_map = {
 
 void parse_command(const string& command) {
     smatch m;
-    if (regex_match(command, m, cmd_regex_map["create_table"])) { // 創建一個 table
-        create_table(m);
-    //} else if (regex_match(command, m, cmd_regex_map["create_table2"])) { // 創建一個 table 2
+    if (regex_match(command, m, cmd_regex_map["create_table_default"])) { // 創建一個 table
+        create_table_default(m);
+    //} else if (regex_match(command, m, cmd_regex_map["create_table"])) { // 創建一個 table 2
         //create_table(m);
     } else if (regex_match(command, m, cmd_regex_map["use_table"])) { // 進入一個 table
         use_table(m);

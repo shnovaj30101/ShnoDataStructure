@@ -6,6 +6,7 @@
 #include<map>
 #include<utility>
 #include "nlohmann/json.hpp"
+#include "basic.hpp"
 #include "fmt/format.h"
 #include<fstream>
 #include<queue>
@@ -27,7 +28,7 @@ class DbSystem {
         DbSystem();
         ~DbSystem();
         void init();
-        void create_table(const string& table_name, const string& field_str);
+        void create_table(const string& table_name, const string& field_str, const string& pk = DEFAULT_PK);
         void use_table(const string& table_name);
         void create_index(const string& index_name);
         void insert_file(const string& file_name);
@@ -38,15 +39,17 @@ class DbSystem {
 
 class Table {
     public:
-        Table(const string& table_name, const string& field_str); // create table 時使用
+        Table(const string& table_name, const string& field_str, const string& pk); // create table 時使用
         Table(const string& table_name); // use table 時使用
         ~Table();
 
+        void create_primary_index();
         void fill_field_info(const string& field_name, const string& field_type);
         void write_table_info();
         void read_table_info();
     private:
         string table_name;
+        string pk;
         map<string, Btree*> IndexMap;
         vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
 };

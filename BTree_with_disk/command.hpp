@@ -9,8 +9,8 @@
 
 using namespace std;
 
+void create_table_default(const smatch& m);
 void create_table(const smatch& m);
-void create_table2(const smatch& m);
 void use_table(const smatch& m);
 void create_index(const smatch& m);
 void insert_file(const smatch& m);

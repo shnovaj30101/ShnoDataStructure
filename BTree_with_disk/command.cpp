@@ -13,7 +13,7 @@ using namespace std;
 using namespace fmt;
 using json = nlohmann::json;
 
-void create_table(const smatch& m) {
+void create_table_default(const smatch& m) {
     string field_str = DEFAULT_FIELD;
 
     string table_name = m.str(1);
@@ -25,7 +25,7 @@ void create_table(const smatch& m) {
     }
 }
 
-void create_table2(const smatch& m) {
+void create_table(const smatch& m) {
 
 }
 
