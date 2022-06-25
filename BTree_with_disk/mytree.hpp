@@ -37,18 +37,40 @@ class DbSystem {
         Table* now_table;
 };
 
+class TableOption {
+    public:
+        TableOption(const string& table_name):
+            table_name(table_name),
+            file_size(DEFAULT_FILE_SIZE),
+            field_max(DEFAULT_FIELD_MAX),
+            value_max(DEFAULT_VALUE_MAX),
+            btree_node_buffer_len(BTREE_NODE_BUFFER_LEN){};
+        TableOption(const string& table_name, int file_size, int field_max, int value_max, btree_node_buffer_len):
+            table_name(table_name),
+            file_size(file_size),
+            field_max(field_max),
+            value_max(value_max),
+            btree_node_buffer_len(btree_node_buffer_len){};
+        ~TableOption();
+        string table_name;
+        int file_size;
+        int field_max;
+        int value_max;
+        int btree_node_buffer_len;
+}
+
 class Table {
     public:
         Table(const string& table_name, const string& field_str, const string& pk); // create table 時使用
         Table(const string& table_name); // use table 時使用
         ~Table();
 
-        void create_primary_index();
+        void create_primary_index(const string& pk);
         void fill_field_info(const string& field_name, const string& field_type);
         void write_table_info();
         void read_table_info();
+        TableOption* table_option;
     private:
-        string table_name;
         string pk;
         map<string, Btree*> IndexMap;
         vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
@@ -59,7 +81,6 @@ class RecData {
     private:
         vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
         json data;
-
 };
 
 class ChildData {
@@ -70,12 +91,16 @@ class ChildData {
 
 class Btree {
     public:
+        Btree(const string& index_name, bool init, TableOption* table_option);
+        ~Btree();
+        TableOption* table_option;
     private:
         int file_size;
         int field_name_max_len;
         int field_value_max_len;
+        int node_buffer_len;
         int degree;
-        string name;
+        string index_name;
         fstream root_file_handle;
         string root_dirname;
         queue<BtreeNode*> node_buffer;
