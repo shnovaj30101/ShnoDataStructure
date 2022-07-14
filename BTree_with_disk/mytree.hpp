@@ -75,6 +75,7 @@ class Table {
         void fill_field_info(const string& field_name, const string& field_type);
         void write_table_info();
         void read_table_info();
+        void insert_data(const json &json_data);
         TableOption* table_option;
     private:
         string pk;

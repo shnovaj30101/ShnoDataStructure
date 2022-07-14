@@ -28,7 +28,7 @@ class CmdQuit:public exception {
 };
 
 map<string, regex> cmd_regex_map = {
-    {"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
+    {"create_table_default", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
     //{"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
     {"use_table", regex("^\\s*use\\s+(\\w+?)\\s*$")},
     {"create_index", regex("^\\s*create\\s+index\\s+(\\w+?)\\s*$")},
@@ -80,4 +80,21 @@ int main(int argc, char* argv[]) {
 
     delete db_system_ptr;
 }
+
+// test cmd
+//
+// create table test
+// use table test
+// insert file test.json
+// create index example_id
+// create index example_str
+// quit
+//
+// create table test2
+// use table test2
+// create index example_id
+// create index example_str
+// insert file test.json
+// quit
+
 

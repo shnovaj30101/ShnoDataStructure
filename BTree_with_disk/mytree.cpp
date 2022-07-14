@@ -46,7 +46,8 @@ void DbSystem::init() {
     }
 }
 
-void DbSystem::create_table(const string& table_name, const string& field_str, const string& pk) { this->TableMap[table_name] = new Table(table_name, field_str, pk);
+void DbSystem::create_table(const string& table_name, const string& field_str, const string& pk) {
+    this->TableMap[table_name] = new Table(table_name, field_str, pk);
 }
 
 void DbSystem::use_table(const string& table_name) {
@@ -66,6 +67,16 @@ void DbSystem::insert_file(const string& file_name) {
         throw runtime_error(format("file {} not exist", file_name));
     }
 
+    ifstream data_file(file_name);
+
+    if (!data_file.is_open()) {
+        throw runtime_error(format("file {} open fail", file_name));
+    }
+
+    string line;
+    while (getline(data_file, line)) {
+        cout << line << endl;
+    }
 }
 
 Table::Table(const string& table_name, const string& field_str, const string& pk) {
@@ -113,6 +124,10 @@ Table::Table(const string& table_name, const string& field_str, const string& pk
 
     this->create_primary_index(pk);
     this->write_table_info();
+}
+
+void Table::insert_data(const json &json_data) {
+
 }
 
 void Table::create_primary_index(const string& pk) {
