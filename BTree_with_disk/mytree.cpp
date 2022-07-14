@@ -336,8 +336,6 @@ BtreeNode::BtreeNode(long id, int degree, int key_field_len, bool is_root, bool 
     this->header.key_field_len = key_field_len;
     this->header.is_root = is_root;
     this->header.is_leaf = is_leaf;
-    this->header.right = -1;
-    this->header.key_count = 0;
 }
 
 BtreeNode::~BtreeNode() {

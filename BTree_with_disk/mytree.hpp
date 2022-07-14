@@ -122,8 +122,8 @@ class BtreeNode {
             int key_field_len;
             bool is_root;
             bool is_leaf;
-            long right;
-            int key_count;
+            long right{-1};
+            int key_count{0};
         } header;
 
         //BtreeKey key[2*degree-1];
