@@ -54,7 +54,7 @@ class TableOption {
             field_max(field_max),
             value_max(value_max),
             btree_node_buffer_len(btree_node_buffer_len){};
-        ~TableOption();
+        ~TableOption() {};
         string table_name;
         int file_size;
         int field_max;
@@ -111,7 +111,7 @@ struct BtreeKey {
 
 class BtreeNode {
     public:
-        BtreeNode(int id, int degree, int key_field_len, bool is_root, bool is_leaf);
+        BtreeNode(long id, int degree, int key_field_len, bool is_root, bool is_leaf);
         ~BtreeNode();
 
     private:

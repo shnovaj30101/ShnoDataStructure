@@ -206,9 +206,7 @@ Table::Table(const string& table_name) {
 
     this->table_option = new TableOption(table_name);
 
-    const string& data_fn = format("./{}/{}/data_file", ROOT_DIRNAME, this->table_option->table_name);
-
-    this->data_page_mgr = make_shared<DataPageMgr>(data_fn);
+    this->data_page_mgr = make_shared<DataPageMgr>(data_fn.string());
 
     this->read_table_info();
 }
@@ -292,7 +290,10 @@ Btree::Btree(const string& index_name, int degree, int key_field_len, shared_ptr
     this->btree_page_mgr->save_node(header.root_id, this->root);
 }
 
-Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
+Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
+    const string& index_dirname = format("./{}/{}/{}_index", ROOT_DIRNAME, table_option->table_name, index_name);
+    const string& btree_fn = format("./{}/{}/{}_index/btree_file", ROOT_DIRNAME, table_option->table_name, index_name);
+
     if (!fs::is_directory(index_dirname)) {
         throw runtime_error(format("index {} not exist", index_name));
     }
@@ -332,7 +333,7 @@ BtreeNode::~BtreeNode() {
 
 // ======================================================
 
-BtreePageMgr::BtreePageMgr(const string& filename, bool trunc = false) : fstream(filename.data(), ios::in | ios::out | ios::binary) {
+BtreePageMgr::BtreePageMgr(const string& filename, bool trunc) : fstream(filename.data(), ios::in | ios::out | ios::binary) {
     this->empty = false;
     this->filename = filename;
     if (!this->good() || trunc) {
@@ -378,7 +379,7 @@ bool BtreePageMgr::get_node(const long &n, btree_node &node) {
 
 // ======================================================
 
-DataPageMgr::DataPageMgr(const string& filename, bool trunc = false) : fstream(filename.data(), ios::in | ios::out | ios::binary) {
+DataPageMgr::DataPageMgr(const string& filename, bool trunc) : fstream(filename.data(), ios::in | ios::out | ios::binary) {
     this->empty = false;
     this->filename = filename;
     if (!this->good() || trunc) {
