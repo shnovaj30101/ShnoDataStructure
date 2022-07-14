@@ -17,12 +17,12 @@ using namespace std;
 using namespace fmt;
 using json = nlohmann::json;
 
-template<class T, int degree>
 class Btree;
-template<class T, int degree>
 class BtreeNode;
 class DbSystem;
 class Table;
+class BtreePageMgr;
+class DataPageMgr;
 
 extern DbSystem* db_system_ptr;
 
@@ -48,7 +48,7 @@ class TableOption {
             field_max(DEFAULT_FIELD_MAX),
             value_max(DEFAULT_VALUE_MAX),
             btree_node_buffer_len(BTREE_NODE_BUFFER_LEN){};
-        TableOption(const string& table_name, int file_size, int field_max, int value_max, btree_node_buffer_len):
+        TableOption(const string& table_name, int file_size, int field_max, int value_max, int btree_node_buffer_len):
             table_name(table_name),
             file_size(file_size),
             field_max(field_max),
@@ -61,7 +61,7 @@ class TableOption {
         int value_max;
         int btree_node_buffer_len;
         vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
-}
+};
 
 
 class Table {
@@ -82,41 +82,53 @@ class Table {
         shared_ptr <DataPageMgr> data_page_mgr;
 };
 
-template <class T, int degree>
 class Btree {
     public:
-        Btree(const string& index_name, bool init, bool is_pk, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option);
+        Btree(const string& index_name, int degree, int key_field_len, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option);
+        Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option);
         ~Btree();
         TableOption* table_option;
     private:
         struct meta_data {
+            bool is_pk{false};
             long count{0};
             long root_id{0};
+            int degree;
+            int key_field_len;
         } header;
-        bool is_pk;
         string index_name;
         shared_ptr <BtreePageMgr> btree_page_mgr;
         shared_ptr <DataPageMgr> data_page_mgr;
-        queue<BtreeNode<T, degree>*> node_buffer;
-        map<int, BtreeNode<T, degree>*> NodeMap;
-        BtreeNode<T, degree>* root;
+        queue<BtreeNode*> node_buffer;
+        map<long, BtreeNode*> NodeMap;
+        BtreeNode* root;
 };
 
-template <class T, int degree>
+struct BtreeKey {
+    char* data;
+    int _id;
+};
+
 class BtreeNode {
     public:
-        BtreeNode(int id, bool is_root);
+        BtreeNode(int id, int degree, int key_field_len, bool is_root, bool is_leaf);
         ~BtreeNode();
 
     private:
-        long traversal_id;
-        int key_count;
-        bool is_root;
-        bool is_leaf;
-        long right;
+        struct meta_data {
+            long traversal_id;
+            int degree;
+            int key_field_len;
+            bool is_root;
+            bool is_leaf;
+            long right;
+            int key_count;
+        } header;
 
-        T key[2*degree-1];
-        long children[2*degree];
+        //BtreeKey key[2*degree-1];
+        //long children[2*degree];
+        vector<BtreeKey> keys;
+        vector<long> children;
 };
 
 class BtreePageMgr : protected fstream {
@@ -137,9 +149,10 @@ class BtreePageMgr : protected fstream {
         bool get_node(const long &n, btree_node &node);
 
     private:
+        bool empty;
         string filename;
         long header_prefix{0};
-}
+};
 
 class DataPageMgr : protected fstream {
     public:
@@ -159,9 +172,10 @@ class DataPageMgr : protected fstream {
         bool get_node(const long &n, btree_node &node);
 
     private:
+        bool empty;
         string filename;
         long header_prefix{0};
-}
+};
 
 #endif
 
