@@ -12,6 +12,8 @@
 #include<fstream>
 #include<queue>
 
+#define FieldInfoType tuple<string,string,int>
+
 namespace fs = std::filesystem;
 using namespace std;
 using namespace fmt;
@@ -23,6 +25,7 @@ class DbSystem;
 class Table;
 class BtreePageMgr;
 class DataPageMgr;
+
 
 extern DbSystem* db_system_ptr;
 
@@ -60,7 +63,7 @@ class TableOption {
         int field_max;
         int value_max;
         int btree_node_buffer_len;
-        vector< tuple<string, string, int> > field_info; // 欄位名稱, 資料型態, 欄位值 size
+        vector< FieldInfoType > field_info; // 欄位名稱, 資料型態, 欄位值 size
 };
 
 
@@ -76,8 +79,12 @@ class Table {
         void write_table_info();
         void read_table_info();
         void insert_data(const json &json_data);
+        void insert_data_validation(const json &json_data); /// todo
         TableOption* table_option;
     private:
+        struct meta_data {
+            long count{0};
+        } data_header;
         string pk;
         map<string, Btree*> IndexMap;
         shared_ptr <DataPageMgr> data_page_mgr;
@@ -89,6 +96,7 @@ class Btree {
         Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option);
         ~Btree();
         TableOption* table_option;
+        void insert_key(struct BtreeKey &key);
     private:
         struct meta_data {
             bool is_pk{false};
@@ -106,9 +114,9 @@ class Btree {
 };
 
 struct BtreeKey {
-    char* data;
     int _id;
-};
+    char* data;
+}; /// todo _id 不一定是 int , data 可以都轉成 char* , 但是一定要記錄型態 , 因為比對要用
 
 class BtreeNode {
     public:
@@ -126,8 +134,6 @@ class BtreeNode {
             int key_count{0};
         } header;
 
-        //BtreeKey key[2*degree-1];
-        //long children[2*degree];
         vector<BtreeKey> keys;
         vector<long> children;
 };
@@ -166,11 +172,9 @@ class DataPageMgr : protected fstream {
         template <class header_data>
         bool get_header(header_data &header);
 
-        template <class btree_node>
-        void save_node(const long &n, btree_node &node);
+        void save_node(const long &n, const json &node, vector<FieldInfoType> &field_info);
 
-        template <class btree_node>
-        bool get_node(const long &n, btree_node &node);
+        bool get_node(const long &n, const json &node, vector<FieldInfoType> &field_info);
 
     private:
         bool empty;

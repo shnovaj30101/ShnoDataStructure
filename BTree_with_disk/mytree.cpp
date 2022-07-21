@@ -75,7 +75,12 @@ void DbSystem::insert_file(const string& file_name) {
 
     string line;
     while (getline(data_file, line)) {
-        cout << line << endl;
+        try {
+            json line_json = json::parse(line);
+            this->now_table->insert_data(line_json);
+        } catch (exception &e) {
+            cout << e.what() << endl;
+        }
     }
 }
 
@@ -126,8 +131,46 @@ Table::Table(const string& table_name, const string& field_str, const string& pk
     this->write_table_info();
 }
 
-void Table::insert_data(const json &json_data) {
+void Table::insert_data(const json &json_data) { /// todo 目前都預設 pk 一定是 _id 且是 int
 
+    insert_data_validation(json_data);
+
+    if (this->pk == DEFAULT_PK) {
+        json_data[this->pk] = this->data_header.count;
+    }
+
+    int pk = json_data[this->pk];
+
+    this->data_header.count++;
+    this->data_page_mgr->save_header(this->data_header);
+    this->data_page_mgr->save_node(this->data_header.count-1, json_data, this->table_option->field_info);
+
+    for (auto &elem : json_data.items()) { /// todo 萬一出現 exception, data_header 要有 rollback 機制
+        string json_key = elem.key();
+
+        if (json_key == this->pk) {
+            struct BtreeKey btree_key{ pk , NULL };
+            this->IndexMap[this->pk]->insert_key(btree_key);
+        }
+        else if (this->IndexMap.find(json_key) != this->IndexMap.end()) {
+            struct BtreeKey btree_key{ pk , NULL };
+            string json_value = elem.value().get<string>();
+
+            int field_size;
+            for (auto& item : this->table_option->field_info) {
+                if (json_key == get<0>(item)) {
+                    field_size = get<2>(item);
+                }
+            }
+
+            btree_key.data = new char[field_size]();
+            strncpy(btree_key.data, json_value.c_str(), field_size);
+            this->IndexMap[json_key]->insert_key(btree_key);
+        }
+    }
+}
+
+void Table::insert_data_validation(const json &json_data) {
 }
 
 void Table::create_primary_index(const string& pk) {
@@ -170,10 +213,10 @@ void Table::fill_field_info(const string& field_name, const string& raw_field_ty
 
     if (field_type == "int") {
         field_size = 4;
-        this->table_option->field_info.push_back(tuple<string, string, int>(field_name, "int", field_size));
+        this->table_option->field_info.push_back(FieldInfoType(field_name, "int", field_size));
     } else if (startsWith(field_type, "char")) {
         field_size = atoi(match.str(2).c_str());
-        this->table_option->field_info.push_back(tuple<string, string, int>(field_name, "char", field_size));
+        this->table_option->field_info.push_back(FieldInfoType(field_name, "char", field_size));
     }
 }
 
@@ -222,6 +265,7 @@ Table::Table(const string& table_name) {
     this->table_option = new TableOption(table_name);
 
     this->data_page_mgr = make_shared<DataPageMgr>(data_fn.string());
+    this->data_page_mgr.get_header(this->data_header);
 
     this->read_table_info();
 }
@@ -249,7 +293,7 @@ void Table::read_table_info() {
                 continue;
             }
             else if (regex_match(line, m, field_name_type_regex)) {
-                this->table_option->field_info.push_back(tuple<string, string, int>(m.str(1), m.str(2), atoi(m.str(3).c_str())));
+                this->table_option->field_info.push_back(FieldInfoType(m.str(1), m.str(2), atoi(m.str(3).c_str())));
                 continue;
             }
             else if (regex_match(line, m, index_regex)) {
@@ -302,7 +346,7 @@ Btree::Btree(const string& index_name, int degree, int key_field_len, shared_ptr
     this->header.count++;
 
     this->btree_page_mgr->save_header(this->header);
-    this->btree_page_mgr->save_node(header.root_id, this->root);
+    this->btree_page_mgr->save_node(header.root_id, *this->root);
 }
 
 Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
@@ -330,6 +374,10 @@ Btree::~Btree() {
     }
 }
 
+void Btree::insert_key(struct BtreeKey &key) {
+
+}
+
 BtreeNode::BtreeNode(long id, int degree, int key_field_len, bool is_root, bool is_leaf) {
     this->header.traversal_id = id;
     this->header.degree = degree;
@@ -340,7 +388,9 @@ BtreeNode::BtreeNode(long id, int degree, int key_field_len, bool is_root, bool 
 
 BtreeNode::~BtreeNode() {
     for (const auto& key : this->keys) {
-        delete key.data;
+        if (key.data != NULL) {
+            delete [] key.data;
+        }
     }
 }
 
@@ -379,14 +429,52 @@ template <class btree_node>
 void BtreePageMgr::save_node(const long &n, btree_node &node) {
     this->clear();
     this->seekp(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->write(reinterpret_cast<char *>(&node), sizeof(node));
+    this->write(reinterpret_cast<char *>(&node.header), sizeof(node.header));
+
+    int i;
+    for (i = 0 ; i < node.header.key_count ; i++) {
+        if (!node.header.is_leaf) {
+            this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
+        } else {
+            this->seekp(sizeof(long), ios::cur);
+        }
+        this->write(reinterpret_cast<char *>(&node.keys[i].data), node.header.key_field_len * sizeof(char));
+        this->write(reinterpret_cast<char *>(&node.keys[i]._id), sizeof(int));
+    }
+
+    if (!node.header.is_leaf) {
+        this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
+    }
 }
 
 template <class btree_node>
 bool BtreePageMgr::get_node(const long &n, btree_node &node) {
     this->clear();
     this->seekg(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->read(reinterpret_cast<char *>(&node), sizeof(node));
+    this->read(reinterpret_cast<char *>(&node.header), sizeof(node.header));
+
+    int i;
+    long children_tmp;
+    for (i = 0 ; i < node.header.key_count ; i++) {
+        if (!node.header.is_leaf) {
+            this->read(reinterpret_cast<char *>(&children_tmp), sizeof(long));
+            node.children.push_back(children_tmp);
+        } else {
+            this->seekg(sizeof(long), ios::cur);
+        }
+        struct BtreeKey key;
+        key.data = (char*)calloc(node.header.key_field_len, sizeof(char));
+        this->read(reinterpret_cast<char *>(&key.data), node.header.key_field_len * sizeof(char));
+        this->read(reinterpret_cast<char *>(&key._id), sizeof(int));
+
+        node.keys.push_back(key);
+    }
+
+    if (!node.header.is_leaf) {
+        this->read(reinterpret_cast<char *>(&children_tmp), sizeof(long));
+        node.children.push_back(children_tmp);
+    }
+
     return this->gcount() > 0;
 }
 
@@ -421,58 +509,54 @@ bool DataPageMgr::get_header(header_data &header) {
     return this->gcount() > 0;
 }
 
-template <class btree_node>
-void DataPageMgr::save_node(const long &n, btree_node &node) {
+void DataPageMgr::save_node(const long &n, const json &node, vector<FieldInfoType> &field_info) {
     this->clear();
-    this->seekp(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->write(reinterpret_cast<char *>(&node.header), sizeof(node.header));
 
-    int i;
-    for (i = 0 ; i < node.header.key_count ; i++) {
-        if (!node.header.is_leaf) {
-            this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
-        } else {
-            this->seekp(sizeof(long), ios::cur);
-        }
-        this->write(reinterpret_cast<char *>(&node.keys[i].data), node.header.key_field_len * sizeof(char));
-        this->write(reinterpret_cast<char *>(&node.keys[i]._id), sizeof(int));
+    int node_size = 0, accu_size = 0;
+    for (auto& item : field_info) {
+        node_size += get<2>(item);
     }
 
-    if (!node.header.is_leaf) {
-        this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
+    char* node_write_data;
+    node_write_data = new char[node_size]();
+    for (auto& item : field_info) {
+        strncpy(node_write_data + accu_size, node[get<0>(item)].get<string>(), get<2>(item));
+        accu_size += get<2>(item);
     }
+
+    this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
+    this->write(reinterpret_cast<char *>(&node_write_data), sizeof(char) * node_size);
+    delete [] node_write_data;
 }
 
-template <class btree_node>
-bool DataPageMgr::get_node(const long &n, btree_node &node) {
+bool DataPageMgr::get_node(const long &n, const json &node, vector<FieldInfoType> &field_info) {
     this->clear();
-    this->seekg(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->read(reinterpret_cast<char *>(&node.header), sizeof(node.header));
 
-    int i;
-    long children_tmp;
-    for (i = 0 ; i < node.header.key_count ; i++) {
-        if (!node.header.is_leaf) {
-            this->read(reinterpret_cast<char *>(&children_tmp), sizeof(long));
-            node.children.push_back(children_tmp);
+    int node_size = 0;
+    for (auto& item : field_info) {
+        node_size += get<2>(item);
+    }
+
+    this->seekg(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
+    for (auto& item : field_info) {
+        string field_name = get<0>(item);
+        string field_type = get<1>(item);
+        string field_size = get<2>(item);
+        if (field_type == "int") { /// todo need to check if correct
+            int read_data;
+            this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
+            node[get<0>(item)] = read_data;
+        } else if (field_type == "char") {
+            string read_data;
+            this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
+            node[get<0>(item)] = read_data;
         } else {
-            this->seekg(sizeof(long), ios::cur);
+            throw runtime_error(format("Unknown field_type {}", field_type));
         }
-        struct BtreeKey key;
-        key.data = (char*)calloc(node.header.key_field_len, sizeof(char));
-        this->read(reinterpret_cast<char *>(&key.data), node.header.key_field_len * sizeof(char));
-        this->read(reinterpret_cast<char *>(&key._id), sizeof(int));
-
-        node.keys.push_back(key);
     }
 
-    if (!node.header.is_leaf) {
-        this->read(reinterpret_cast<char *>(&children_tmp), sizeof(long));
-        node.children.push_back(children_tmp);
-    }
-
+    //this->read(reinterpret_cast<char *>(&node), sizeof(node));
     return this->gcount() > 0;
 }
-
 
 

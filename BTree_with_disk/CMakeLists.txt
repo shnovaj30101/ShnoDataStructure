@@ -9,6 +9,11 @@ target_compile_features(main PUBLIC cxx_std_17)
 target_link_libraries(main fmt::fmt)
 target_link_libraries(main nlohmann_json::nlohmann_json)
 
+add_executable(read_json read_json_test.cpp)
+target_compile_features(read_json PUBLIC cxx_std_17)
+target_link_libraries(read_json fmt::fmt)
+target_link_libraries(read_json nlohmann_json::nlohmann_json)
+
 #add_executable(debug1_main main.cpp myrandom.cpp myrandom.hpp mytree.cpp mytree.hpp)
 #target_compile_definitions(debug1_main PUBLIC -DDEBUG1)
 #target_compile_features(debug1_main PUBLIC cxx_std_17)
