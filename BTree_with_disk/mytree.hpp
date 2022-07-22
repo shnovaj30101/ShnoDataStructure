@@ -31,6 +31,12 @@ enum class FieldType {
     char_type,
 };
 
+struct BtreeKey {
+    int _id;
+    char* data;
+}; /// todo _id 不一定是 int , data 可以都轉成 char* , 但是一定要記錄型態 , 因為比對要用
+
+
 extern DbSystem* db_system_ptr;
 
 class DbSystem {
@@ -119,11 +125,6 @@ class Btree {
         map<long, BtreeNode*> NodeMap;
         BtreeNode* root;
 };
-
-struct BtreeKey {
-    int _id;
-    char* data;
-}; /// todo _id 不一定是 int , data 可以都轉成 char* , 但是一定要記錄型態 , 因為比對要用
 
 class BtreeNode {
     public:
