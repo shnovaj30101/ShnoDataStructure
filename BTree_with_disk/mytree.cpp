@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <vector>
 #include <filesystem>
 #include<memory>
 #include <fstream>
@@ -131,7 +132,7 @@ Table::Table(const string& table_name, const string& field_str, const string& pk
     this->write_table_info();
 }
 
-void Table::insert_data(const json &json_data) { /// todo 目前都預設 pk 一定是 _id 且是 int
+void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是 _id 且是 int
 
     insert_data_validation(json_data);
 
@@ -150,7 +151,7 @@ void Table::insert_data(const json &json_data) { /// todo 目前都預設 pk 一
 
         if (json_key == this->pk) {
             struct BtreeKey btree_key{ pk , NULL };
-            this->IndexMap[this->pk]->insert_key(btree_key);
+            this->IndexMap[this->pk]->insert_key(btree_key, this->data_header.count-1);
         }
         else if (this->IndexMap.find(json_key) != this->IndexMap.end()) {
             struct BtreeKey btree_key{ pk , NULL };
@@ -165,7 +166,7 @@ void Table::insert_data(const json &json_data) { /// todo 目前都預設 pk 一
 
             btree_key.data = new char[field_size]();
             strncpy(btree_key.data, json_value.c_str(), field_size);
-            this->IndexMap[json_key]->insert_key(btree_key);
+            this->IndexMap[json_key]->insert_key(btree_key, this->data_header.count-1);
         }
     }
 }
@@ -176,15 +177,23 @@ void Table::insert_data_validation(const json &json_data) {
 void Table::create_primary_index(const string& pk) {
     this->pk = pk;
     int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + sizeof(long)) / 2 ;
-    this->IndexMap[pk] = new Btree(pk, degree, 0, this->data_page_mgr, this->table_option);
+    this->IndexMap[pk] = new Btree(pk, degree, FieldType::int_type, 0, this->data_page_mgr, this->table_option);
 }
 
 void Table::create_index(const string& index_name) {
     for (auto& item : this->table_option->field_info) {
-        if (index_name == get<0>(item)) {
-            int key_field_len = get<2>(item);
+        if (index_name == std::get<0>(item)) {
+            int key_field_len = std::get<2>(item);
+            FieldType key_field_type;
+
+            if (std::get<1>(item) == "int") {
+                key_field_type = FieldType::int_type;
+            } else if (std::get<1>(item) == "char") {
+                key_field_type = FieldType::char_type;
+            }
+
             int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
-            this->IndexMap[pk] = new Btree(index_name, degree, key_field_len, this->data_page_mgr, this->table_option);
+            this->IndexMap[pk] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
             break;
         }
     }
@@ -213,10 +222,10 @@ void Table::fill_field_info(const string& field_name, const string& raw_field_ty
 
     if (field_type == "int") {
         field_size = 4;
-        this->table_option->field_info.push_back(FieldInfoType(field_name, "int", field_size));
+        this->table_option->field_info.push_back(FieldTypeInfo(field_name, "int", field_size));
     } else if (startsWith(field_type, "char")) {
         field_size = atoi(match.str(2).c_str());
-        this->table_option->field_info.push_back(FieldInfoType(field_name, "char", field_size));
+        this->table_option->field_info.push_back(FieldTypeInfo(field_name, "char", field_size));
     }
 }
 
@@ -230,7 +239,7 @@ void Table::write_table_info() {
     if (f.is_open()) {
 
         for (auto& item : this->table_option->field_info) {
-            f << get<0>(item) << " " << get<1>(item) << " " << get<2>(item) << endl;
+            f << std::get<0>(item) << " " << std::get<1>(item) << " " << std::get<2>(item) << endl;
         }
 
         f << "@PRIMARY_KEY " << this->pk << endl;
@@ -265,7 +274,7 @@ Table::Table(const string& table_name) {
     this->table_option = new TableOption(table_name);
 
     this->data_page_mgr = make_shared<DataPageMgr>(data_fn.string());
-    this->data_page_mgr.get_header(this->data_header);
+    this->data_page_mgr->get_header(this->data_header);
 
     this->read_table_info();
 }
@@ -289,21 +298,29 @@ void Table::read_table_info() {
             if (regex_match(line, m, primary_key_regex)) {
                 this->pk = m.str(1);
                 int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + sizeof(long)) / 2 ;
-                this->IndexMap[this->pk] = new Btree(this->pk, degree, 0, this->data_page_mgr, this->table_option);
+                this->IndexMap[this->pk] = new Btree(this->pk, degree, FieldType::int_type, 0, this->data_page_mgr, this->table_option);
                 continue;
             }
             else if (regex_match(line, m, field_name_type_regex)) {
-                this->table_option->field_info.push_back(FieldInfoType(m.str(1), m.str(2), atoi(m.str(3).c_str())));
+                this->table_option->field_info.push_back(FieldTypeInfo(m.str(1), m.str(2), atoi(m.str(3).c_str())));
                 continue;
             }
             else if (regex_match(line, m, index_regex)) {
                 string index_name = m.str(1);
 
                 for (auto& item : this->table_option->field_info) {
-                    if (index_name == get<0>(item)) {
-                        int key_field_len = get<2>(item);
+                    if (index_name == std::get<0>(item)) {
+                        int key_field_len = std::get<2>(item);
                         int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
-                        this->IndexMap[index_name] = new Btree(index_name, degree, key_field_len, this->data_page_mgr, this->table_option);
+                        FieldType key_field_type;
+
+                        if (std::get<1>(item) == "int") {
+                            key_field_type = FieldType::int_type;
+                        } else if (std::get<1>(item) == "char") {
+                            key_field_type = FieldType::char_type;
+                        }
+
+                        this->IndexMap[index_name] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
                         break;
                     }
                 }
@@ -323,7 +340,7 @@ Table::~Table() {
     delete this->table_option;
 }
 
-Btree::Btree(const string& index_name, int degree, int key_field_len, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
+Btree::Btree(const string& index_name, int degree, FieldType key_field_type, int key_field_len, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
     const string& index_dirname = format("./{}/{}/{}_index", ROOT_DIRNAME, table_option->table_name, index_name);
     const string& btree_fn = format("./{}/{}/{}_index/btree_file", ROOT_DIRNAME, table_option->table_name, index_name);
 
@@ -337,12 +354,13 @@ Btree::Btree(const string& index_name, int degree, int key_field_len, shared_ptr
     }
     this->header.degree = degree;
     this->header.key_field_len = key_field_len;
+    this->header.key_field_type = key_field_type;
     this->data_page_mgr = data_page_mgr;
     this->table_option = table_option;
 
     this->btree_page_mgr = make_shared<BtreePageMgr>(btree_fn);
 
-    this->root = new BtreeNode(header.root_id, degree, key_field_len, true, true);
+    this->root = new BtreeNode(header.root_id, degree, key_field_type, key_field_len, true, true);
     this->header.count++;
 
     this->btree_page_mgr->save_header(this->header);
@@ -362,7 +380,7 @@ Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, T
     this->btree_page_mgr = make_shared<BtreePageMgr>(btree_fn);
 
     this->btree_page_mgr->get_header(this->header);
-    this->btree_page_mgr->get_node(this->header.root_id, this->root);
+    this->btree_page_mgr->get_node(this->header.root_id, *this->root);
 }
 
 Btree::~Btree() {
@@ -374,14 +392,27 @@ Btree::~Btree() {
     }
 }
 
-void Btree::insert_key(struct BtreeKey &key) {
-
+void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
+    this->insert_key(key, *(this->root), data_page_pos);
 }
 
-BtreeNode::BtreeNode(long id, int degree, int key_field_len, bool is_root, bool is_leaf) {
+void Btree::insert_key(struct BtreeKey &key, BtreeNode &now_node, long data_page_pos) {
+    if (now_node.header.is_leaf) {
+        for (int i = 0 ; i < now_node.keys.size() ; i++) {
+
+        }
+    } else {
+        //for () {
+
+        //}
+    }
+}
+
+BtreeNode::BtreeNode(long id, int degree, FieldType key_field_type, int key_field_len, bool is_root, bool is_leaf) {
     this->header.traversal_id = id;
     this->header.degree = degree;
     this->header.key_field_len = key_field_len;
+    this->header.key_field_type = key_field_type;
     this->header.is_root = is_root;
     this->header.is_leaf = is_leaf;
 }
@@ -429,7 +460,7 @@ template <class btree_node>
 void BtreePageMgr::save_node(const long &n, btree_node &node) {
     this->clear();
     this->seekp(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->write(reinterpret_cast<char *>(&node.header), sizeof(node.header));
+    this->write(reinterpret_cast<char *>(&(node.header)), sizeof(node.header));
 
     int i;
     for (i = 0 ; i < node.header.key_count ; i++) {
@@ -451,7 +482,7 @@ template <class btree_node>
 bool BtreePageMgr::get_node(const long &n, btree_node &node) {
     this->clear();
     this->seekg(this->header_prefix + n * sizeof(btree_node), ios::beg);
-    this->read(reinterpret_cast<char *>(&node.header), sizeof(node.header));
+    this->read(reinterpret_cast<char *>(&(node.header)), sizeof(node.header));
 
     int i;
     long children_tmp;
@@ -509,19 +540,19 @@ bool DataPageMgr::get_header(header_data &header) {
     return this->gcount() > 0;
 }
 
-void DataPageMgr::save_node(const long &n, const json &node, vector<FieldInfoType> &field_info) {
+void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInfo> &field_info) {
     this->clear();
 
     int node_size = 0, accu_size = 0;
     for (auto& item : field_info) {
-        node_size += get<2>(item);
+        node_size += std::get<2>(item);
     }
 
     char* node_write_data;
     node_write_data = new char[node_size]();
     for (auto& item : field_info) {
-        strncpy(node_write_data + accu_size, node[get<0>(item)].get<string>(), get<2>(item));
-        accu_size += get<2>(item);
+        strncpy(node_write_data + accu_size, node[std::get<0>(item)].get<string>().c_str(), std::get<2>(item));
+        accu_size += std::get<2>(item);
     }
 
     this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
@@ -529,27 +560,27 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldInfoTyp
     delete [] node_write_data;
 }
 
-bool DataPageMgr::get_node(const long &n, const json &node, vector<FieldInfoType> &field_info) {
+bool DataPageMgr::get_node(const long &n, json &node, vector<FieldTypeInfo> &field_info) {
     this->clear();
 
     int node_size = 0;
     for (auto& item : field_info) {
-        node_size += get<2>(item);
+        node_size += std::get<2>(item);
     }
 
     this->seekg(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
     for (auto& item : field_info) {
-        string field_name = get<0>(item);
-        string field_type = get<1>(item);
-        string field_size = get<2>(item);
+        string field_name = std::get<0>(item);
+        string field_type = std::get<1>(item);
+        int field_size = std::get<2>(item);
         if (field_type == "int") { /// todo need to check if correct
             int read_data;
             this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
-            node[get<0>(item)] = read_data;
+            node[std::get<0>(item)] = read_data;
         } else if (field_type == "char") {
             string read_data;
             this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
-            node[get<0>(item)] = read_data;
+            node[std::get<0>(item)] = read_data;
         } else {
             throw runtime_error(format("Unknown field_type {}", field_type));
         }
