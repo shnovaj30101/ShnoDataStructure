@@ -57,19 +57,19 @@ class TableOption {
     public:
         TableOption(const string& table_name):
             table_name(table_name),
-            file_size(DEFAULT_PAGE_SIZE),
+            page_size(DEFAULT_PAGE_SIZE),
             field_max(DEFAULT_FIELD_MAX),
             value_max(DEFAULT_VALUE_MAX),
             btree_node_buffer_len(BTREE_NODE_BUFFER_LEN){};
-        TableOption(const string& table_name, int file_size, int field_max, int value_max, int btree_node_buffer_len):
+        TableOption(const string& table_name, int page_size, int field_max, int value_max, int btree_node_buffer_len):
             table_name(table_name),
-            file_size(file_size),
+            page_size(page_size),
             field_max(field_max),
             value_max(value_max),
             btree_node_buffer_len(btree_node_buffer_len){};
         ~TableOption() {};
         string table_name;
-        int file_size;
+        int page_size;
         int field_max;
         int value_max;
         int btree_node_buffer_len;
@@ -108,7 +108,8 @@ class Btree {
         ~Btree();
         TableOption* table_option;
         void insert_key(struct BtreeKey &key, long data_page_pos);
-        void insert_key(struct BtreeKey &key, BtreeNode &now_node, long data_page_pos);
+        void split_child(BtreeNode &node, const vector<long> &traversal_node_id);
+        int key_compare(struct BtreeKey &key1, struct BtreeKey &key2);
         struct meta_data {
             bool is_pk{false};
             long count{0};
@@ -142,6 +143,7 @@ class BtreeNode {
         } header;
         vector<BtreeKey> keys;
         vector<long> children;
+        bool is_full();
     private:
 };
 
@@ -157,10 +159,10 @@ class BtreePageMgr : protected fstream {
         bool get_header(header_data &header);
 
         template <class btree_node>
-        void save_node(const long &n, btree_node &node);
+        void save_node(const long &n, btree_node &node, TableOption* table_option);
 
         template <class btree_node>
-        bool get_node(const long &n, btree_node &node);
+        bool get_node(const long &n, btree_node &node, TableOption* table_option);
 
     private:
         bool empty;
