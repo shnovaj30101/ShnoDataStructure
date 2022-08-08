@@ -27,8 +27,13 @@ class BtreePageMgr;
 class DataPageMgr;
 
 enum class FieldType {
-    int_type,
-    char_type,
+    int_type = 0,
+    char_type = 1,
+};
+
+static string FieldType_to_string[] = {
+    "int",
+    "char",
 };
 
 struct BtreeKey {
@@ -108,7 +113,7 @@ class Btree {
         ~Btree();
         TableOption* table_option;
         void insert_key(struct BtreeKey &key, long data_page_pos);
-        void split_child(BtreeNode &node, const vector<pair<long, int>> &traversal_node_record);
+        void split_child(BtreeNode *node, vector<pair<long, int>> &traversal_node_record);
         int key_compare(struct BtreeKey &key1, struct BtreeKey &key2);
         struct meta_data {
             bool is_pk{false};
