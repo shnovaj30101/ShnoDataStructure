@@ -108,7 +108,7 @@ class Btree {
         ~Btree();
         TableOption* table_option;
         void insert_key(struct BtreeKey &key, long data_page_pos);
-        void split_child(BtreeNode &node, const vector<long> &traversal_node_id);
+        void split_child(BtreeNode &node, const vector<pair<long, int>> &traversal_node_record);
         int key_compare(struct BtreeKey &key1, struct BtreeKey &key2);
         struct meta_data {
             bool is_pk{false};
@@ -130,6 +130,7 @@ class Btree {
 class BtreeNode {
     public:
         BtreeNode(long id, int degree, FieldType key_field_type, int key_field_len, bool is_root, bool is_leaf);
+        BtreeNode();
         ~BtreeNode();
         struct meta_data {
             long traversal_id;
@@ -141,9 +142,10 @@ class BtreeNode {
             long right{-1};
             int key_count{0};
         } header;
-        vector<BtreeKey> keys;
+        vector<struct BtreeKey> keys;
         vector<long> children;
         bool is_full();
+        struct BtreeKey key_copy(int key_idx);
     private:
 };
 
