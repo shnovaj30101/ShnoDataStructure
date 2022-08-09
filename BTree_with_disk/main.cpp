@@ -68,6 +68,23 @@ int main(int argc, char* argv[]) {
 
     db_system_ptr->init();
 
+#ifdef TEST1
+
+    parse_command(string("create table test"));
+    parse_command(string("use test"));
+    parse_command(string("insert ../test_case/test.json"));
+    parse_command(string("create index example_id"));
+    parse_command(string("create index example_str"));
+
+#elif defined TEST2
+
+    parse_command(string("create table test2"));
+    parse_command(string("use test2"));
+    parse_command(string("create index example_id"));
+    parse_command(string("create index example_str"));
+    parse_command(string("insert ../test_case/test2.json"));
+
+#else
     cout << "ShnoDatabase$ ";
     while (getline(cin, command)) {
         try {
@@ -77,24 +94,10 @@ int main(int argc, char* argv[]) {
         }
         cout << "ShnoDatabase$ ";
     }
+#endif
 
     delete db_system_ptr;
 }
 
-// test cmd
-//
-// create table test
-// use table test
-// insert file test.json
-// create index example_id
-// create index example_str
-// quit
-//
-// create table test2
-// use table test2
-// create index example_id
-// create index example_str
-// insert file test.json
-// quit
 
 

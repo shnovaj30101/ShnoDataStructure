@@ -813,7 +813,6 @@ bool DataPageMgr::get_node(const long &n, json &node, vector<FieldTypeInfo> &fie
         }
     }
 
-    //this->read(reinterpret_cast<char *>(&node), sizeof(node));
     return this->gcount() > 0;
 }
 
