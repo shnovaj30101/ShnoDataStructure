@@ -802,8 +802,19 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInf
     char* node_write_data;
     node_write_data = new char[node_size]();
     for (auto& item : field_info) {
-        strncpy(node_write_data + accu_size, node[std::get<0>(item)].get<string>().c_str(), std::get<2>(item));
-        accu_size += std::get<2>(item);
+        string field_name = std::get<0>(item);
+        string field_type = std::get<1>(item);
+        int field_size = std::get<2>(item);
+
+        if (field_type == "int") { /// todo need to check if correct
+            int field_value = node[field_name].get<int>();
+            strncpy(node_write_data + accu_size, reinterpret_cast<char *>(&field_value), field_size);
+        } else if (field_type == "char") {
+            strncpy(node_write_data + accu_size, node[field_name].get<string>().c_str(), field_size);
+        } else {
+            throw runtime_error(format("Unknown field_type {}", field_type));
+        }
+        accu_size += field_size;
     }
 
     this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
