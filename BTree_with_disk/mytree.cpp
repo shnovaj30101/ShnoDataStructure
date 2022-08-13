@@ -29,7 +29,7 @@ bool endsWith(const std::string& str, const std::string suffix) {
     return (str.rfind(suffix) == (str.length() - suffix.length()));
 }
 
-DbSystem* db_system_ptr = new DbSystem();
+DbSystem* db_system_ptr = NULL;
 
 DbSystem::DbSystem() {}
 
