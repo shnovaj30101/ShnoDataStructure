@@ -18,6 +18,8 @@ map<string, regex> cmd_regex_map = {
     {"create_table_default", regex("^\\s*create\\s+table\\s+(\\w+?)\\s*$")},
     //{"create_table", regex("^\\s*create\\s+table\\s+(\\w+?)\\s+(\\(.+?\\))\\s*$")},
     {"use_table", regex("^\\s*use\\s+(\\w+?)\\s*$")},
+    {"clearb_table", regex("^\\s*clearb\\s+table\\s+(\\w+?)\\s*$")},
+    {"delete_table", regex("^\\s*delete\\s+table\\s+(\\w+?)\\s*$")},
     {"create_index", regex("^\\s*create\\s+index\\s+(\\w+?)\\s*$")},
     {"insert_file", regex("^\\s*insert\\s+(\\S+?)\\s*$")},
     {"remove_data", regex("^\\s*remove\\s+(.+?)\\s*$")},
@@ -33,6 +35,10 @@ void parse_command(const string& command) {
         //create_table(m);
     } else if (regex_match(command, m, cmd_regex_map["use_table"])) { // 進入一個 table
         use_table(m);
+    } else if (regex_match(command, m, cmd_regex_map["clearb_table"])) { // 進入一個 table
+        clearb_table(m);
+    } else if (regex_match(command, m, cmd_regex_map["delete_table"])) { // 進入一個 table
+        delete_table(m);
     } else if (regex_match(command, m, cmd_regex_map["create_index"])) { // 創建一個 index
         create_index(m);
     } else if (regex_match(command, m, cmd_regex_map["insert_file"])) { // 清除一個 table
@@ -71,6 +77,26 @@ void use_table(const smatch& m) {
 
     try {
         db_system_ptr->use_table(table_name);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
+}
+
+void clearb_table(const smatch& m) {
+    string table_name = m.str(1);
+
+    try {
+        db_system_ptr->clearb_table(table_name);
+    } catch (exception &e) {
+        cout << e.what() << endl;
+    }
+}
+
+void delete_table(const smatch& m) {
+    string table_name = m.str(1);
+
+    try {
+        db_system_ptr->delete_table(table_name);
     } catch (exception &e) {
         cout << e.what() << endl;
     }

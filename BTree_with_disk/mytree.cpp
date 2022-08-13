@@ -58,6 +58,30 @@ void DbSystem::use_table(const string& table_name) {
     this->now_table = this->TableMap[table_name];
 }
 
+void DbSystem::clearb_table(const string& table_name) {
+    if (!this->table_exist(table_name)) {
+        throw runtime_error(format("table {} not exist", table_name));
+    }
+    if (this->TableMap.find(table_name) != this->TableMap.end()) {
+        delete this->TableMap[table_name];
+    }
+}
+
+void DbSystem::delete_table(const string& table_name) {
+    if (!this->table_exist(table_name)) {
+        throw runtime_error(format("table {} not exist", table_name));
+    }
+    this->clearb_table(table_name);
+
+    string table_dirname = format("./{}/{}", ROOT_DIRNAME, table_name);
+    fs::remove_all(table_dirname); /// todo dangerous
+}
+
+bool DbSystem::table_exist(const string& table_name) {
+    string table_dirname = format("./{}/{}", ROOT_DIRNAME, table_name);
+    return fs::is_directory(table_dirname);
+}
+
 void DbSystem::create_index(const string& index_name) {
 }
 

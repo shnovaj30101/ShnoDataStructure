@@ -51,8 +51,11 @@ class DbSystem {
         void init();
         void create_table(const string& table_name, const string& field_str, const string& pk = DEFAULT_PK);
         void use_table(const string& table_name);
+        void clearb_table(const string& table_name);
+        void delete_table(const string& table_name);
         void create_index(const string& index_name);
         void insert_file(const string& file_name);
+        bool table_exist(const string& file_name);
     private:
         map<string, Table*> TableMap;
         Table* now_table;

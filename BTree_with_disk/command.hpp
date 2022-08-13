@@ -22,6 +22,8 @@ extern map<string, regex> cmd_regex_map;
 void create_table_default(const smatch& m);
 void create_table(const smatch& m);
 void use_table(const smatch& m);
+void clearb_table(const smatch& m);
+void delete_table(const smatch& m);
 void create_index(const smatch& m);
 void insert_file(const smatch& m);
 void remove_data(const smatch& m);
