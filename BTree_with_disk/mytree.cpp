@@ -34,8 +34,10 @@ DbSystem* db_system_ptr = NULL;
 DbSystem::DbSystem() {}
 
 DbSystem::~DbSystem() {
-    for (const auto& [key, value] : this->TableMap) {
-        delete value;
+    map<string, Table*>::iterator it;
+    for (it = this->TableMap.begin() ; it != this->TableMap.end() ; ) {
+        delete it->second;
+        this->TableMap.erase(it++);
     }
 }
 
@@ -64,6 +66,7 @@ void DbSystem::clearb_table(const string& table_name) {
     }
     if (this->TableMap.find(table_name) != this->TableMap.end()) {
         delete this->TableMap[table_name];
+        this->TableMap.erase(table_name);
     }
 }
 
@@ -358,8 +361,10 @@ void Table::read_table_info() {
 }
 
 Table::~Table() {
-    for (const auto& [key, value] : this->IndexMap) {
-        delete value;
+    map<string, Btree*>::iterator it;
+    for (it = this->IndexMap.begin() ; it != this->IndexMap.end() ; ) {
+        delete it->second;
+        this->IndexMap.erase(it++);
     }
     delete this->table_option;
 }
@@ -410,11 +415,10 @@ Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, T
 }
 
 Btree::~Btree() {
-    for (const auto& [key, value] : this->NodeMap) {
-        delete value;
-    }
-    if (this->root) {
-        delete this->root;
+    map<long, BtreeNode*>::iterator it;
+    for (it = this->NodeMap.begin() ; it != this->NodeMap.end() ; ) {
+        delete it->second;
+        this->NodeMap.erase(it++);
     }
 }
 
@@ -678,6 +682,8 @@ BtreeNode::~BtreeNode() {
     for (const auto& key : this->keys) {
         if (key.data != NULL) {
             delete [] key.data;
+        } else {
+            break;
         }
     }
 }
