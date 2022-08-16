@@ -86,6 +86,11 @@ bool DbSystem::table_exist(const string& table_name) {
 }
 
 void DbSystem::create_index(const string& index_name) {
+    if (this->now_table == NULL) {
+        throw runtime_error("now_table not set");
+    } else {
+        this->now_table->create_index(index_name);
+    }
 }
 
 void DbSystem::insert_file(const string& file_name) {
@@ -184,15 +189,18 @@ void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是
             struct BtreeKey btree_key{ pk , NULL };
             string json_value = elem.value().get<string>();
 
-            int field_size;
+            int data_size;
             for (auto& item : this->table_option->field_info) {
-                if (json_key == get<0>(item)) {
-                    field_size = get<2>(item);
+                string field_name = get<0>(item);
+                int field_size = get<2>(item);
+                if (json_key == field_name) {
+                    data_size = field_size;
+                    break;
                 }
             }
 
-            btree_key.data = new char[field_size]();
-            strncpy(btree_key.data, json_value.c_str(), field_size);
+            btree_key.data = new char[data_size]();
+            strncpy(btree_key.data, json_value.c_str(), data_size);
             this->IndexMap[json_key]->insert_key(btree_key, this->data_header.count-1);
         }
     }
@@ -209,13 +217,17 @@ void Table::create_primary_index(const string& pk) {
 
 void Table::create_index(const string& index_name) {
     for (auto& item : this->table_option->field_info) {
-        if (index_name == std::get<0>(item)) {
-            int key_field_len = std::get<2>(item);
+        string field_name = std::get<0>(item);
+        string field_type = std::get<1>(item);
+        int field_size = std::get<2>(item);
+
+        if (index_name == field_name) {
+            int key_field_len = field_size;
             FieldType key_field_type;
 
-            if (std::get<1>(item) == "int") {
+            if (field_type == "int") {
                 key_field_type = FieldType::int_type;
-            } else if (std::get<1>(item) == "char") {
+            } else if (field_type == "char") {
                 key_field_type = FieldType::char_type;
             }
 
@@ -223,6 +235,20 @@ void Table::create_index(const string& index_name) {
             this->IndexMap[pk] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
             break;
         }
+    }
+
+    this->data_page_mgr->get_header(this->data_header);
+    for (long i = 0 ; i < this->data_header. ; ++i) {
+        json json_data;
+        this->data_page_mgr->get_node(i, json_data, this->table_option->field_info);
+
+        if (!json_data["exist"]) {
+            continue;
+        }
+
+        json_data.erase("exist");
+        this->IndexMap
+
     }
 }
 
@@ -800,7 +826,7 @@ bool DataPageMgr::get_header(header_data &header) {
 void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInfo> &field_info) {
     this->clear();
 
-    int node_size = 0, accu_size = 0;
+    int node_size = 1, accu_size = 0; // node_size 1 is to record if the node is deleted
     for (auto& item : field_info) {
         node_size += std::get<2>(item);
     }
@@ -824,6 +850,8 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInf
     }
 
     this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
+    bool exist = true;
+    this->write(reinterpret_cast<char *>(&exist), sizeof(char) * 1);
     this->write(reinterpret_cast<char *>(&node_write_data), sizeof(char) * node_size);
     delete [] node_write_data;
 }
@@ -831,12 +859,16 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInf
 bool DataPageMgr::get_node(const long &n, json &node, vector<FieldTypeInfo> &field_info) {
     this->clear();
 
-    int node_size = 0;
+    int node_size = 1; // node_size 1 is to record if the node is deleted
     for (auto& item : field_info) {
         node_size += std::get<2>(item);
     }
 
     this->seekg(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
+    bool exist;
+    this->read(reinterpret_cast<char *>(&exist), 1 * sizeof(char));
+    node["exist"] = exist;
+
     for (auto& item : field_info) {
         string field_name = std::get<0>(item);
         string field_type = std::get<1>(item);
