@@ -792,7 +792,7 @@ void BtreePageMgr::save_node(const long &n, btree_node &node, TableOption* table
     for (i = 0 ; i < node.header.key_count ; i++) {
         this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
 
-        this->write(reinterpret_cast<char *>(&node.keys[i].data), node.header.key_field_len * sizeof(char));
+        this->write(node.keys[i].data, node.header.key_field_len * sizeof(char));
         this->write(reinterpret_cast<char *>(&node.keys[i]._id), sizeof(int));
     }
 
@@ -815,7 +815,7 @@ bool BtreePageMgr::get_node(const long &n, btree_node &node, TableOption* table_
 
         struct BtreeKey key;
         key.data = (char*)calloc(node.header.key_field_len, sizeof(char));
-        this->read(reinterpret_cast<char *>(&key.data), node.header.key_field_len * sizeof(char));
+        this->read(key.data, node.header.key_field_len * sizeof(char));
         this->read(reinterpret_cast<char *>(&key._id), sizeof(int));
 
         node.keys.push_back(key);
@@ -889,7 +889,9 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInf
     this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
     bool exist = true;
     this->write(reinterpret_cast<char *>(&exist), sizeof(char) * 1);
-    this->write(reinterpret_cast<char *>(&node_write_data), sizeof(char) * node_size);
+    //this->flush(); /// todo
+    this->write(node_write_data, sizeof(char) * (node_size-1));
+    //this->flush(); /// todo
     delete [] node_write_data;
 }
 
@@ -915,9 +917,10 @@ bool DataPageMgr::get_node(const long &n, json &node, vector<FieldTypeInfo> &fie
             this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
             node[std::get<0>(item)] = read_data;
         } else if (field_type == "char") {
-            string read_data;
-            this->read(reinterpret_cast<char *>(&read_data), field_size * sizeof(char));
-            node[std::get<0>(item)] = read_data;
+            char* read_data = new char[field_size];
+            this->read(read_data, field_size * sizeof(char));
+            node[std::get<0>(item)] = string(read_data);
+            delete [] read_data;
         } else {
             throw runtime_error(format("Unknown field_type {}", field_type));
         }
