@@ -37,7 +37,7 @@ static string FieldType_to_string[] = {
 };
 
 struct BtreeKey {
-    int _id;
+    long _id;
     char* data;
 }; /// todo _id 不一定是 int , data 可以都轉成 char* , 但是一定要記錄型態 , 因為比對要用
 

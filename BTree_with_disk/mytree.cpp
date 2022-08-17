@@ -172,7 +172,7 @@ void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是
         json_data[this->pk] = this->data_header.count;
     }
 
-    int pk = json_data[this->pk];
+    long pk = json_data[this->pk];
 
     ++this->data_header.count;
     this->data_page_mgr->save_header(this->data_header);
@@ -187,20 +187,29 @@ void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是
         }
         else if (this->IndexMap.find(json_key) != this->IndexMap.end()) {
             struct BtreeKey btree_key{ pk , NULL };
-            string json_value = elem.value().get<string>();
 
             int data_size;
+            string data_type;
             for (auto& item : this->table_option->field_info) {
                 string field_name = get<0>(item);
+                string field_type = get<1>(item);
                 int field_size = get<2>(item);
                 if (json_key == field_name) {
                     data_size = field_size;
+                    data_type = field_type;
                     break;
                 }
             }
 
             btree_key.data = new char[data_size]();
-            strncpy(btree_key.data, json_value.c_str(), data_size);
+            if (data_type == "int") {
+                int json_raw_value = elem.value().get<int>();
+                strncpy(btree_key.data, reinterpret_cast<char *>(&json_raw_value), data_size);
+            } else if (data_type == "char") {
+                string json_raw_value = elem.value().get<string>();
+                strncpy(btree_key.data, json_raw_value.c_str(), data_size);
+            }
+
             this->IndexMap[json_key]->insert_key(btree_key, this->data_header.count-1);
         }
     }
@@ -216,6 +225,16 @@ void Table::create_primary_index(const string& pk) {
 }
 
 void Table::create_index(const string& index_name) {
+
+    for (auto& item : this->IndexMap) {
+        if (index_name == item.first) {
+            throw runtime_error(format("index {} is already existed\n", index_name));
+        }
+    }
+
+    bool create_new_index = false;
+    int key_data_size;
+    string key_data_type;
     for (auto& item : this->table_option->field_info) {
         string field_name = std::get<0>(item);
         string field_type = std::get<1>(item);
@@ -223,6 +242,8 @@ void Table::create_index(const string& index_name) {
 
         if (index_name == field_name) {
             int key_field_len = field_size;
+            key_data_size = field_size;
+            key_data_type = field_type;
             FieldType key_field_type;
 
             if (field_type == "int") {
@@ -232,13 +253,17 @@ void Table::create_index(const string& index_name) {
             }
 
             int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
-            this->IndexMap[pk] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
+            this->IndexMap[index_name] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
+            create_new_index = true;
             break;
         }
     }
 
-    this->data_page_mgr->get_header(this->data_header);
-    for (long i = 0 ; i < this->data_header. ; ++i) {
+    if (!create_new_index) {
+        throw runtime_error(format("index_name {} not match any field\n", index_name));
+    }
+
+    for (long i = 0 ; i < this->data_header.count ; ++i) {
         json json_data;
         this->data_page_mgr->get_node(i, json_data, this->table_option->field_info);
 
@@ -247,8 +272,18 @@ void Table::create_index(const string& index_name) {
         }
 
         json_data.erase("exist");
-        this->IndexMap
 
+        struct BtreeKey btree_key{ i , NULL };
+
+        btree_key.data = new char[key_data_size]();
+        if (key_data_type == "int") {
+            int json_raw_value = json_data[index_name].get<int>();
+            strncpy(btree_key.data, reinterpret_cast<char *>(&json_raw_value), key_data_size);
+        } else if (key_data_type == "char") {
+            string json_raw_value = json_data[index_name].get<string>();
+            strncpy(btree_key.data, json_raw_value.c_str(), key_data_size);
+        }
+        this->IndexMap[index_name]->insert_key(btree_key, i);
     }
 }
 
@@ -534,8 +569,10 @@ int Btree::key_compare(struct BtreeKey &key1, struct BtreeKey &key2) {
         }
 
     } else if (this->header.key_field_type == FieldType::int_type) {
-        int key1_data = atoi(string(key1.data, this->header.key_field_len).c_str());
-        int key2_data = atoi(string(key2.data, this->header.key_field_len).c_str());
+        int key1_data;
+        int key2_data;
+        strncpy(reinterpret_cast<char *>(&key1_data), key1.data, this->header.key_field_len);
+        strncpy(reinterpret_cast<char *>(&key2_data), key2.data, this->header.key_field_len);
 
         if (key1_data > key2_data) {
             return 1;
