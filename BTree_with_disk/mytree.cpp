@@ -101,7 +101,6 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
         output_json["children"].push_back(btree_node.children[i]);
     }
 
-    delete btree;
     delete table;
 
     return output_json;
@@ -516,7 +515,7 @@ Btree::Btree(const string& index_name, int degree, FieldType key_field_type, int
     ++this->header.count;
 
     this->btree_page_mgr->save_header(this->header);
-    this->btree_page_mgr->save_node(header.root_id, *this->root, this->table_option);
+    this->btree_page_mgr->save_node(header.root_id, *(this->root), this->table_option);
 }
 
 Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
@@ -532,6 +531,7 @@ Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, T
     this->btree_page_mgr = make_shared<BtreePageMgr>(btree_fn);
 
     this->btree_page_mgr->get_header(this->header);
+    this->root = new BtreeNode();
     this->btree_page_mgr->get_node(this->header.root_id, *(this->root), table_option);
 }
 
