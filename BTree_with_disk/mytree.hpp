@@ -56,6 +56,7 @@ class DbSystem {
         void create_index(const string& index_name);
         void insert_file(const string& file_name);
         bool table_exist(const string& file_name);
+        json get_btree_node_info(const string& table_name, const string& index_name, const long& n);
     private:
         map<string, Table*> TableMap;
         Table* now_table;
@@ -103,10 +104,10 @@ class Table {
         struct meta_data {
             long count{0};
         } data_header;
-    private:
-        string pk;
         map<string, Btree*> IndexMap;
         shared_ptr <DataPageMgr> data_page_mgr;
+        string pk;
+    private:
 };
 
 class Btree {
@@ -126,13 +127,13 @@ class Btree {
             int key_field_len;
             FieldType key_field_type;
         } header;
-    private:
         string index_name;
         shared_ptr <BtreePageMgr> btree_page_mgr;
         shared_ptr <DataPageMgr> data_page_mgr;
         queue<BtreeNode*> node_buffer;
         map<long, BtreeNode*> NodeMap;
         BtreeNode* root;
+    private:
 };
 
 class BtreeNode {
