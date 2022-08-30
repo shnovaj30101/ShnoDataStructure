@@ -31,7 +31,15 @@ bool endsWith(const std::string& str, const std::string suffix) {
 
 DbSystem* db_system_ptr = NULL;
 
-DbSystem::DbSystem() {}
+DbSystem::DbSystem() {
+    string root_dirname = format("./{}", ROOT_DIRNAME);
+
+    if (!fs::is_directory(root_dirname)) {
+        fs::create_directory(root_dirname);
+    }
+
+    this->dbsystem_option = new DbSystemOption();
+}
 
 DbSystem::~DbSystem() {
     map<string, Table*>::iterator it;
@@ -39,14 +47,8 @@ DbSystem::~DbSystem() {
         delete it->second;
         this->TableMap.erase(it++);
     }
-}
 
-void DbSystem::init() {
-    string root_dirname = format("./{}", ROOT_DIRNAME);
-
-    if (!fs::is_directory(root_dirname)) {
-        fs::create_directory(root_dirname);
-    }
+    delete this->dbsystem_option;
 }
 
 json DbSystem::get_btree_node_info(const string& table_name, const string& index_name, const long& n) {
@@ -60,7 +62,7 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
     if (this->TableMap.find(table_name) != this->TableMap.end()) {
         table = this->TableMap[table_name];
     } else {
-        table = new Table(table_name);
+        table = new Table(table_name, this->dbsystem_option);
     }
 
     if (table->IndexMap.find(index_name) != table->IndexMap.end()) {
@@ -73,7 +75,7 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
         throw runtime_error(format("node {} not exist in inde {} table {}", n, index_name, table_name));
     }
 
-    btree->btree_page_mgr->get_node(n, btree_node, btree->table_option);
+    btree->btree_page_mgr->get_node(n, btree_node, btree->btree_option);
 
     json output_json;
 
@@ -106,13 +108,13 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
     return output_json;
 }
 
-void DbSystem::create_table(const string& table_name, const string& field_str, const string& pk) {
-    this->TableMap[table_name] = new Table(table_name, field_str, pk);
+void DbSystem::create_table(const string& table_name, const string& field_str) {
+    this->TableMap[table_name] = new Table(table_name, this->dbsystem_option, field_str);
 }
 
 void DbSystem::use_table(const string& table_name) {
     if (this->TableMap.find(table_name) == this->TableMap.end()) {
-        this->TableMap[table_name] = new Table(table_name);
+        this->TableMap[table_name] = new Table(table_name, this->dbsystem_option);
     }
     this->now_table = this->TableMap[table_name];
 }
@@ -174,14 +176,14 @@ void DbSystem::insert_file(const string& file_name) {
     }
 }
 
-Table::Table(const string& table_name, const string& field_str, const string& pk) {
+Table::Table(const string& table_name, DbSystemOption* dbsystem_option, const string& field_str) {
     string table_dirname = format("./{}/{}", ROOT_DIRNAME, table_name);
 
     if (fs::is_directory(table_dirname)) {
         throw runtime_error(format("table {} exist", table_name));
     }
 
-    this->table_option = new TableOption(table_name);
+    this->table_option = new TableOption(table_name, dbsystem_option);
 
     const string field_content_pat = "^\\s*\\((.+?)\\)\\s*$";
     regex field_content_regex(field_content_pat);
@@ -217,7 +219,7 @@ Table::Table(const string& table_name, const string& field_str, const string& pk
 
     this->data_page_mgr = make_shared<DataPageMgr>(data_fn);
 
-    this->create_primary_index(pk);
+    this->create_primary_index(this->table_option->pk);
     this->write_table_info();
 }
 
@@ -225,11 +227,9 @@ void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是
 
     insert_data_validation(json_data);
 
-    if (this->pk == DEFAULT_PK) {
-        json_data[this->pk] = this->data_header.count;
-    }
+    json_data[DEFAULT_PK] = this->data_header.count;
 
-    long pk = json_data[this->pk];
+    long pk = json_data[this->table_option->pk];
 
     ++this->data_header.count;
     this->data_page_mgr->save_header(this->data_header);
@@ -238,9 +238,9 @@ void Table::insert_data(json &json_data) { /// todo 目前都預設 pk 一定是
     for (auto &elem : json_data.items()) { /// todo 萬一出現 exception, data_header 要有 rollback 機制
         string json_key = elem.key();
 
-        if (json_key == this->pk) {
+        if (json_key == this->table_option->pk) {
             struct BtreeKey btree_key{ pk , NULL };
-            this->IndexMap[this->pk]->insert_key(btree_key, this->data_header.count-1);
+            this->IndexMap[this->table_option->pk]->insert_key(btree_key, this->data_header.count-1);
         }
         else if (this->IndexMap.find(json_key) != this->IndexMap.end()) {
             struct BtreeKey btree_key{ pk , NULL };
@@ -276,9 +276,17 @@ void Table::insert_data_validation(const json &json_data) {
 }
 
 void Table::create_primary_index(const string& pk) {
-    this->pk = pk;
-    int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + sizeof(long)) / 2 ;
-    this->IndexMap[pk] = new Btree(pk, degree, FieldType::int_type, 0, this->data_page_mgr, this->table_option);
+    int degree, page_size;
+    int default_degree = this->table_option->dbsystem_option->default_degree;
+    int default_page_size = this->table_option->dbsystem_option->default_page_size;
+    if (default_degree == -1) {
+        degree = (default_page_size - 100) / (sizeof(int) + sizeof(long)) / 2 ;
+        page_size = default_page_size;
+    } else {
+        degree = default_degree;
+        page_size = 2 * (sizeof(int) + sizeof(long)) * degree + 100;
+    }
+    this->IndexMap[pk] = new Btree(pk, this->table_option, degree, page_size, FieldType::int_type, 0, this->data_page_mgr);
 }
 
 void Table::create_index(const string& index_name) {
@@ -309,8 +317,17 @@ void Table::create_index(const string& index_name) {
                 key_field_type = FieldType::char_type;
             }
 
-            int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
-            this->IndexMap[index_name] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
+            int degree, page_size;
+            int default_degree = this->table_option->dbsystem_option->default_degree;
+            int default_page_size = this->table_option->dbsystem_option->default_page_size;
+            if (default_degree == -1) {
+                degree = (default_page_size - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
+                page_size = default_page_size;
+            } else {
+                degree = default_degree;
+                page_size = 2 * (sizeof(int) + key_field_len + sizeof(long)) * degree + 100;
+            }
+            this->IndexMap[index_name] = new Btree(index_name, this->table_option, degree, page_size, key_field_type, key_field_len, this->data_page_mgr);
             create_new_index = true;
             break;
         }
@@ -387,7 +404,7 @@ void Table::write_table_info() {
             f << std::get<0>(item) << " " << std::get<1>(item) << " " << std::get<2>(item) << endl;
         }
 
-        f << "@PRIMARY_KEY " << this->pk << endl;
+        f << "@PRIMARY_KEY " << this->table_option->pk << endl;
 
         for (auto& item : this->IndexMap) {
             f << "@INDEX " << item.first << endl;
@@ -397,7 +414,7 @@ void Table::write_table_info() {
     }
 }
 
-Table::Table(const string& table_name) {
+Table::Table(const string& table_name, DbSystemOption* dbsystem_option) {
     string table_dirname = format("./{}/{}", ROOT_DIRNAME, table_name);
 
     if (!fs::is_directory(table_dirname)) {
@@ -416,7 +433,7 @@ Table::Table(const string& table_name) {
         throw runtime_error(format("table {} data fn not exist", table_name));
     }
 
-    this->table_option = new TableOption(table_name);
+    this->table_option = new TableOption(table_name, dbsystem_option);
 
     this->data_page_mgr = make_shared<DataPageMgr>(data_fn.string());
     this->data_page_mgr->get_header(this->data_header);
@@ -441,10 +458,8 @@ void Table::read_table_info() {
         string line;
         while (getline(f, line)) {
             if (regex_match(line, m, primary_key_regex)) {
-                this->pk = m.str(1);
-                int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + sizeof(long)) / 2 ;
-                this->IndexMap[this->pk] = new Btree(this->pk, this->data_page_mgr, this->table_option);
-                //this->IndexMap[this->pk] = new Btree(this->pk, degree, FieldType::int_type, 0, this->data_page_mgr, this->table_option);
+                this->table_option->pk = m.str(1);
+                this->IndexMap[this->table_option->pk] = new Btree(this->table_option->pk, this->table_option, this->data_page_mgr);
                 continue;
             }
             else if (regex_match(line, m, field_name_type_regex)) {
@@ -456,18 +471,7 @@ void Table::read_table_info() {
 
                 for (auto& item : this->table_option->field_info) {
                     if (index_name == std::get<0>(item)) {
-                        int key_field_len = std::get<2>(item);
-                        int degree = (DEFAULT_PAGE_SIZE - 100) / (sizeof(int) + key_field_len + sizeof(long)) / 2;
-                        FieldType key_field_type;
-
-                        if (std::get<1>(item) == "int") {
-                            key_field_type = FieldType::int_type;
-                        } else if (std::get<1>(item) == "char") {
-                            key_field_type = FieldType::char_type;
-                        }
-
-                        this->IndexMap[index_name] = new Btree(index_name, this->data_page_mgr, this->table_option);
-                        //this->IndexMap[index_name] = new Btree(index_name, degree, key_field_type, key_field_len, this->data_page_mgr, this->table_option);
+                        this->IndexMap[index_name] = new Btree(index_name, this->table_option, this->data_page_mgr);
                         break;
                     }
                 }
@@ -489,7 +493,7 @@ Table::~Table() {
     delete this->table_option;
 }
 
-Btree::Btree(const string& index_name, int degree, FieldType key_field_type, int key_field_len, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
+Btree::Btree(const string& index_name, TableOption* table_option, int degree, int page_size, FieldType key_field_type, int key_field_len, shared_ptr <DataPageMgr> data_page_mgr) {
     const string& index_dirname = format("./{}/{}/{}_index", ROOT_DIRNAME, table_option->table_name, index_name);
     const string& btree_fn = format("./{}/{}/{}_index/btree_file", ROOT_DIRNAME, table_option->table_name, index_name);
 
@@ -497,42 +501,44 @@ Btree::Btree(const string& index_name, int degree, FieldType key_field_type, int
         throw runtime_error(format("index {} exist", index_name));
     }
     fs::create_directory(index_dirname);
-    this->index_name = index_name;
     if (key_field_len == 0) {
         this->header.is_pk = true;
     }
-    this->header.degree = degree;
-    this->header.key_field_len = key_field_len;
-    this->header.key_field_type = key_field_type;
+    this->btree_option = new BtreeOption(
+            index_dirname,
+            degree,
+            page_size,
+            key_field_type,
+            key_field_len,
+            table_option
+            );
     this->data_page_mgr = data_page_mgr;
-    this->table_option = table_option;
 
     this->btree_page_mgr = make_shared<BtreePageMgr>(btree_fn);
 
-    this->root = new BtreeNode(header.root_id, degree, key_field_type, key_field_len, true, true);
+    this->root = new BtreeNode(header.root_id, true, true, this->btree_option);
     this->NodeMap[header.root_id] = this->root;
     this->node_buffer.push(this->root);
     ++this->header.count;
 
-    this->btree_page_mgr->save_header(this->header);
-    this->btree_page_mgr->save_node(header.root_id, *(this->root), this->table_option);
+    this->btree_page_mgr->save_header(this->header, this->btree_option->config);
+    this->btree_page_mgr->save_node(header.root_id, *(this->root), this->btree_option);
 }
 
-Btree::Btree(const string& index_name, shared_ptr <DataPageMgr> data_page_mgr, TableOption* table_option) {
+Btree::Btree(const string& index_name, TableOption* table_option, shared_ptr <DataPageMgr> data_page_mgr) {
     const string& index_dirname = format("./{}/{}/{}_index", ROOT_DIRNAME, table_option->table_name, index_name);
     const string& btree_fn = format("./{}/{}/{}_index/btree_file", ROOT_DIRNAME, table_option->table_name, index_name);
 
     if (!fs::is_directory(index_dirname)) {
         throw runtime_error(format("index {} not exist", index_name));
     }
-    this->index_name = index_name;
+    this->btree_option = new BtreeOption(index_name, table_option);
     this->data_page_mgr = data_page_mgr;
-    this->table_option = table_option;
     this->btree_page_mgr = make_shared<BtreePageMgr>(btree_fn);
 
-    this->btree_page_mgr->get_header(this->header);
+    this->btree_page_mgr->get_header(this->header, this->btree_option->config);
     this->root = new BtreeNode();
-    this->btree_page_mgr->get_node(this->header.root_id, *(this->root), table_option);
+    this->btree_page_mgr->get_node(this->header.root_id, *(this->root), this->btree_option);
 }
 
 Btree::~Btree() {
@@ -541,6 +547,8 @@ Btree::~Btree() {
         delete it->second;
         this->NodeMap.erase(it++);
     }
+
+    delete this->btree_option;
 }
 
 void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
@@ -557,7 +565,7 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
                     now_node->keys.insert(kit, key);
                     now_node->children.insert(cit, data_page_pos);
                     ++now_node->header.key_count;
-                    this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->table_option);
+                    this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
                     is_inserted = true;
                     break;
                 }
@@ -567,7 +575,7 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
                 now_node->keys.push_back(key);
                 now_node->children.push_back(data_page_pos);
                 ++now_node->header.key_count;
-                this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->table_option);
+                this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
             }
 
             if (now_node->is_full()) {
@@ -594,7 +602,7 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
             if (insert_child_id > -1) {
                 if (this->NodeMap.find(insert_child_id) == this->NodeMap.end()) {
                     now_node = new BtreeNode();
-                    this->btree_page_mgr->get_node(insert_child_id, *now_node, this->table_option);
+                    this->btree_page_mgr->get_node(insert_child_id, *now_node, this->btree_option);
                     this->NodeMap[insert_child_id] = now_node;
                     this->node_buffer.push(now_node);
                 } else {
@@ -605,11 +613,11 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
                 --cit;
                 --kit;
                 kit->_id = key._id;
-                strncpy(kit->data, key.data, this->header.key_field_len);
+                strncpy(kit->data, key.data, this->btree_option->config.key_field_len);
                 insert_child_id = *cit;
                 if (this->NodeMap.find(insert_child_id) == this->NodeMap.end()) {
                     now_node = new BtreeNode();
-                    this->btree_page_mgr->get_node(insert_child_id, *now_node, this->table_option);
+                    this->btree_page_mgr->get_node(insert_child_id, *now_node, this->btree_option);
                     this->NodeMap[insert_child_id] = now_node;
                     this->node_buffer.push(now_node);
                 } else {
@@ -633,11 +641,11 @@ int Btree::key_compare(struct BtreeKey &key1, struct BtreeKey &key2) {
             return 0;
         }
 
-    } else if (this->header.key_field_type == FieldType::int_type) {
+    } else if (this->btree_option->config.key_field_type == FieldType::int_type) {
         int key1_data;
         int key2_data;
-        strncpy(reinterpret_cast<char *>(&key1_data), key1.data, this->header.key_field_len);
-        strncpy(reinterpret_cast<char *>(&key2_data), key2.data, this->header.key_field_len);
+        strncpy(reinterpret_cast<char *>(&key1_data), key1.data, this->btree_option->config.key_field_len);
+        strncpy(reinterpret_cast<char *>(&key2_data), key2.data, this->btree_option->config.key_field_len);
 
         if (key1_data > key2_data) {
             return 1;
@@ -651,8 +659,8 @@ int Btree::key_compare(struct BtreeKey &key1, struct BtreeKey &key2) {
             return 0;
         }
 
-    } else if (this->header.key_field_type == FieldType::char_type) {
-        int cmp_result = strncmp(key1.data, key2.data, this->header.key_field_len);
+    } else if (this->btree_option->config.key_field_type == FieldType::char_type) {
+        int cmp_result = strncmp(key1.data, key2.data, this->btree_option->config.key_field_len);
 
         if (cmp_result == 0) {
             if (key1._id > key2._id) {
@@ -667,7 +675,7 @@ int Btree::key_compare(struct BtreeKey &key1, struct BtreeKey &key2) {
         }
 
     } else {
-        throw runtime_error(format("Unknown field_type {} to compare", FieldType_to_string[static_cast<int>(this->header.key_field_type)]));
+        throw runtime_error(format("Unknown field_type {} to compare", FieldType_to_string[static_cast<int>(this->btree_option->config.key_field_type)]));
     }
 }
 
@@ -677,22 +685,18 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             ++this->header.count;
             BtreeNode *new_root = new BtreeNode(
                     this->header.count-1,
-                    this->header.degree,
-                    this->header.key_field_type,
-                    this->header.key_field_len,
                     true,
-                    false
+                    false,
+                    this->btree_option
                     );
             this->NodeMap[this->header.count-1] = new_root;
             this->node_buffer.push(new_root);
             ++this->header.count;
             BtreeNode *right = new BtreeNode(
                     this->header.count-1,
-                    this->header.degree,
-                    this->header.key_field_type,
-                    this->header.key_field_len,
                     false,
-                    now_node->header.is_leaf
+                    now_node->header.is_leaf,
+                    this->btree_option
                     );
             this->NodeMap[this->header.count-1] = right;
             this->node_buffer.push(right);
@@ -716,10 +720,10 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             right->header.key_count = key_count/2;
             now_node->header.key_count = key_count/2;
 
-            this->btree_page_mgr->save_header(this->header);
-            this->btree_page_mgr->save_node(new_root->header.traversal_id, *new_root, this->table_option);
-            this->btree_page_mgr->save_node(right->header.traversal_id, *right, this->table_option);
-            this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->table_option);
+            this->btree_page_mgr->save_header(this->header, this->btree_option->config);
+            this->btree_page_mgr->save_node(new_root->header.traversal_id, *new_root, this->btree_option);
+            this->btree_page_mgr->save_node(right->header.traversal_id, *right, this->btree_option);
+            this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
         } else {
             BtreeNode *parent;
             BtreeNode *right;
@@ -734,7 +738,7 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
                 parent = this->NodeMap[parent_id];
             } else {
                 parent = new BtreeNode();
-                this->btree_page_mgr->get_node(parent_id, *parent, this->table_option);
+                this->btree_page_mgr->get_node(parent_id, *parent, this->btree_option);
                 this->NodeMap[parent_id] = parent;
                 this->node_buffer.push(parent);
             }
@@ -742,17 +746,15 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             ++this->header.count;
             right = new BtreeNode(
                     this->header.count-1,
-                    this->header.degree,
-                    this->header.key_field_type,
-                    this->header.key_field_len,
                     false,
-                    now_node->header.is_leaf
+                    now_node->header.is_leaf,
+                    this->btree_option
                     );
             this->NodeMap[this->header.count-1] = right;
             this->node_buffer.push(right);
 
             parent->keys[child_idx]._id = now_node->keys[key_count/2-1]._id;
-            strncpy(parent->keys[child_idx].data, now_node->keys[key_count/2-1].data, this->header.key_field_len);
+            strncpy(parent->keys[child_idx].data, now_node->keys[key_count/2-1].data, this->btree_option->config.key_field_len);
 
             vector<struct BtreeKey>::iterator kit;
             vector<long>::iterator cit;
@@ -769,10 +771,10 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             parent->children.insert(parent->children.begin() + child_idx + 1, right->header.traversal_id);
             parent->header.key_count += 1;
 
-            this->btree_page_mgr->save_header(this->header);
-            this->btree_page_mgr->save_node(parent->header.traversal_id, *parent, this->table_option);
-            this->btree_page_mgr->save_node(right->header.traversal_id, *right, this->table_option);
-            this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->table_option);
+            this->btree_page_mgr->save_header(this->header, this->btree_option->config);
+            this->btree_page_mgr->save_node(parent->header.traversal_id, *parent, this->btree_option);
+            this->btree_page_mgr->save_node(right->header.traversal_id, *right, this->btree_option);
+            this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
 
             if (parent->is_full()) {
                 now_node = parent;
@@ -782,25 +784,23 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
 }
 
 bool BtreeNode::is_full() {
-    return this->header.key_count == 2*this->header.degree;
+    return this->header.key_count == 2*this->btree_option->config.degree;
 }
 
 struct BtreeKey BtreeNode::key_copy(int key_idx) {
     struct BtreeKey output_key;
     output_key._id = this->keys[key_idx]._id;
-    output_key.data = new char[this->header.key_field_len]();
-    strncpy(output_key.data, this->keys[key_idx].data, this->header.key_field_len);
+    output_key.data = new char[this->btree_option->config.key_field_len]();
+    strncpy(output_key.data, this->keys[key_idx].data, this->btree_option->config.key_field_len);
 
     return output_key;
 }
 
-BtreeNode::BtreeNode(long id, int degree, FieldType key_field_type, int key_field_len, bool is_root, bool is_leaf) {
+BtreeNode::BtreeNode(long id, bool is_root, bool is_leaf, BtreeOption* btree_option) {
     this->header.traversal_id = id;
-    this->header.degree = degree;
-    this->header.key_field_len = key_field_len;
-    this->header.key_field_type = key_field_type;
     this->header.is_root = is_root;
     this->header.is_leaf = is_leaf;
+    this->btree_option = btree_option;
 }
 
 BtreeNode::BtreeNode() {
@@ -831,41 +831,43 @@ BtreePageMgr::~BtreePageMgr() {
     this->close();
 }
 
-template <class header_data>
-void BtreePageMgr::save_header(header_data &header) {
+template <class header_data, class config_data>
+void BtreePageMgr::save_header(header_data &header, config_data &config) {
     this->clear();
     this->seekp(0, ios::beg);
     this->write(reinterpret_cast<char *>(&header), sizeof(header));
-    this->header_prefix = sizeof(header_data);
+    this->write(reinterpret_cast<char *>(&config), sizeof(config));
+    this->header_prefix = sizeof(header_data) + sizeof(config_data);
 }
 
-template <class header_data>
-bool BtreePageMgr::get_header(header_data &header) {
+template <class header_data, class config_data>
+bool BtreePageMgr::get_header(header_data &header, config_data &config) {
     this->clear();
     this->seekg(0, ios::beg);
     this->read(reinterpret_cast<char *>(&header), sizeof(header));
+    this->read(reinterpret_cast<char *>(&config), sizeof(config));
     return this->gcount() > 0;
 }
 
 template <class btree_node>
-void BtreePageMgr::save_node(const long &n, btree_node &node, TableOption* table_option) {
+void BtreePageMgr::save_node(const long &n, btree_node &node, BtreeOption* btree_option) {
     this->clear();
-    this->seekp(this->header_prefix + n * table_option->page_size, ios::beg);
+    this->seekp(this->header_prefix + n * btree_option->config.page_size, ios::beg);
     this->write(reinterpret_cast<char *>(&(node.header)), sizeof(node.header));
 
     int i;
     for (i = 0 ; i < node.header.key_count ; i++) {
         this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
 
-        this->write(node.keys[i].data, node.header.key_field_len * sizeof(char));
+        this->write(node.keys[i].data, btree_option->config.key_field_len * sizeof(char));
         this->write(reinterpret_cast<char *>(&node.keys[i]._id), sizeof(int));
     }
 }
 
 template <class btree_node>
-bool BtreePageMgr::get_node(const long &n, btree_node &node, TableOption* table_option) {
+bool BtreePageMgr::get_node(const long &n, btree_node &node, BtreeOption* btree_option) {
     this->clear();
-    this->seekg(this->header_prefix + n * table_option->page_size, ios::beg);
+    this->seekg(this->header_prefix + n * btree_option->config.page_size, ios::beg);
     this->read(reinterpret_cast<char *>(&(node.header)), sizeof(node.header));
 
     int i;
@@ -875,8 +877,8 @@ bool BtreePageMgr::get_node(const long &n, btree_node &node, TableOption* table_
         node.children.push_back(children_tmp);
 
         struct BtreeKey key;
-        key.data = (char*)calloc(node.header.key_field_len, sizeof(char));
-        this->read(key.data, node.header.key_field_len * sizeof(char));
+        key.data = (char*)calloc(btree_option->config.key_field_len, sizeof(char));
+        this->read(key.data, btree_option->config.key_field_len * sizeof(char));
         this->read(reinterpret_cast<char *>(&key._id), sizeof(int));
 
         node.keys.push_back(key);

@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 void test1() {
     db_system_ptr = new DbSystem();
-    db_system_ptr->init();
+    db_system_ptr->dbsystem_option->default_degree = 3;
 
     parse_command(string("delete table test"));
     parse_command(string("create table test"));
@@ -43,7 +43,7 @@ void test1() {
 
 void test2() {
     db_system_ptr = new DbSystem();
-    db_system_ptr->init();
+    db_system_ptr->dbsystem_option->default_degree = 3;
 
     parse_command(string("delete table test2"));
     parse_command(string("create table test2"));

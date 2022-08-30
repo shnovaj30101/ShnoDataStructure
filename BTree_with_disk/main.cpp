@@ -16,7 +16,6 @@ int main(int argc, char* argv[]) {
     string command;
 
     db_system_ptr = new DbSystem();
-    db_system_ptr->init();
 
     cout << "ShnoDatabase$ ";
     while (getline(cin, command)) {
