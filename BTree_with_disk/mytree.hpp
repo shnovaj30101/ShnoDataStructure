@@ -71,7 +71,9 @@ class TableOption {
     public:
         TableOption(const string& table_name, DbSystemOption* dbsystem_option):
             table_name(table_name),
-            dbsystem_option(dbsystem_option){};
+            dbsystem_option(dbsystem_option){
+                this->pk = dbsystem_option->default_pk;
+            };
         ~TableOption() {};
         DbSystemOption* dbsystem_option;
         string table_name;

@@ -718,12 +718,17 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
                 right->children.push_back(*cit);
             }
             right->header.key_count = key_count/2;
+            right->keys.resize(key_count/2);
+            right->children.resize(key_count/2);
             now_node->header.key_count = key_count/2;
+            now_node->keys.resize(key_count/2);
+            now_node->children.resize(key_count/2);
 
             this->btree_page_mgr->save_header(this->header, this->btree_option->config);
             this->btree_page_mgr->save_node(new_root->header.traversal_id, *new_root, this->btree_option);
             this->btree_page_mgr->save_node(right->header.traversal_id, *right, this->btree_option);
             this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
+            break;
         } else {
             BtreeNode *parent;
             BtreeNode *right;
@@ -765,7 +770,11 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
                 right->children.push_back(*cit);
             }
             right->header.key_count = key_count/2;
+            right->keys.resize(key_count/2);
+            right->children.resize(key_count/2);
             now_node->header.key_count = key_count/2;
+            now_node->keys.resize(key_count/2);
+            now_node->children.resize(key_count/2);
 
             parent->keys.insert(parent->keys.begin() + child_idx + 1, right->key_copy(right->header.key_count-1));
             parent->children.insert(parent->children.begin() + child_idx + 1, right->header.traversal_id);
@@ -778,6 +787,8 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
 
             if (parent->is_full()) {
                 now_node = parent;
+            } else {
+                break;
             }
         }
     }
