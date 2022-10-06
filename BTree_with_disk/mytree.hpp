@@ -19,6 +19,9 @@ using namespace std;
 using namespace fmt;
 using json = nlohmann::json;
 
+class DbSystemOption;
+class TableOption;
+class BtreeOption;
 class Btree;
 class BtreeNode;
 class DbSystem;

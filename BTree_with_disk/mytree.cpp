@@ -96,7 +96,7 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
         } else {
             output_data = string(key.data);
         }
-        output_json["keys"].push_back({key._id, key.data});
+        output_json["keys"].push_back({key._id, output_data});
     }
 
     for (int i = 0 ; i < btree_node.children.size() ; ++i) {
@@ -689,6 +689,7 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
                     false,
                     this->btree_option
                     );
+            this->root = new_root;
             this->NodeMap[this->header.count-1] = new_root;
             this->node_buffer.push(new_root);
             ++this->header.count;
@@ -758,8 +759,10 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             this->NodeMap[this->header.count-1] = right;
             this->node_buffer.push(right);
 
-            parent->keys[child_idx]._id = now_node->keys[key_count/2-1]._id;
-            strncpy(parent->keys[child_idx].data, now_node->keys[key_count/2-1].data, this->btree_option->config.key_field_len);
+            //parent->keys[child_idx]._id = now_node->keys[key_count/2-1]._id;
+            //strncpy(parent->keys[child_idx].data, now_node->keys[key_count/2-1].data, this->btree_option->config.key_field_len);
+            parent->keys.insert(parent->keys.begin() + child_idx, now_node->key_copy(key_count/2-1));
+            parent->children.insert(parent->children.begin() + child_idx, now_node->header.traversal_id);
 
             vector<struct BtreeKey>::iterator kit;
             vector<long>::iterator cit;
@@ -776,8 +779,8 @@ void Btree::split_child(BtreeNode *now_node, vector<pair<long, int>> &traversal_
             now_node->keys.resize(key_count/2);
             now_node->children.resize(key_count/2);
 
-            parent->keys.insert(parent->keys.begin() + child_idx + 1, right->key_copy(right->header.key_count-1));
-            parent->children.insert(parent->children.begin() + child_idx + 1, right->header.traversal_id);
+            //parent->keys.insert(parent->keys.begin() + child_idx + 1, right->key_copy(right->header.key_count-1));
+            parent->children[child_idx + 1] = right->header.traversal_id;
             parent->header.key_count += 1;
 
             this->btree_page_mgr->save_header(this->header, this->btree_option->config);
@@ -801,8 +804,12 @@ bool BtreeNode::is_full() {
 struct BtreeKey BtreeNode::key_copy(int key_idx) {
     struct BtreeKey output_key;
     output_key._id = this->keys[key_idx]._id;
-    output_key.data = new char[this->btree_option->config.key_field_len]();
-    strncpy(output_key.data, this->keys[key_idx].data, this->btree_option->config.key_field_len);
+    if (this->btree_option->config.key_field_len == 0) {
+        output_key.data = NULL;
+    } else {
+        output_key.data = new char[this->btree_option->config.key_field_len]();
+        strncpy(output_key.data, this->keys[key_idx].data, this->btree_option->config.key_field_len);
+    }
 
     return output_key;
 }
@@ -868,10 +875,12 @@ void BtreePageMgr::save_node(const long &n, btree_node &node, BtreeOption* btree
 
     int i;
     for (i = 0 ; i < node.header.key_count ; i++) {
-        this->write(reinterpret_cast<char *>(&node.children[i]), sizeof(long));
+        this->write(reinterpret_cast<char *>(&(node.children[i])), sizeof(long));
 
-        this->write(node.keys[i].data, btree_option->config.key_field_len * sizeof(char));
-        this->write(reinterpret_cast<char *>(&node.keys[i]._id), sizeof(int));
+        if (btree_option->config.key_field_len > 0) {
+            this->write(node.keys[i].data, btree_option->config.key_field_len * sizeof(char));
+        }
+        this->write(reinterpret_cast<char *>(&(node.keys[i]._id)), sizeof(long));
     }
 }
 
@@ -888,9 +897,13 @@ bool BtreePageMgr::get_node(const long &n, btree_node &node, BtreeOption* btree_
         node.children.push_back(children_tmp);
 
         struct BtreeKey key;
-        key.data = (char*)calloc(btree_option->config.key_field_len, sizeof(char));
-        this->read(key.data, btree_option->config.key_field_len * sizeof(char));
-        this->read(reinterpret_cast<char *>(&key._id), sizeof(int));
+        if (btree_option->config.key_field_len == 0) {
+            key.data = NULL;
+        } else {
+            key.data = (char*)calloc(btree_option->config.key_field_len, sizeof(char));
+            this->read(key.data, btree_option->config.key_field_len * sizeof(char));
+        }
+        this->read(reinterpret_cast<char *>(&(key._id)), sizeof(long));
 
         node.keys.push_back(key);
     }
