@@ -75,6 +75,7 @@ json DbSystem::get_btree_node_info(const string& table_name, const string& index
         throw runtime_error(format("node {} not exist in inde {} table {}", n, index_name, table_name));
     }
 
+    btree->btree_page_mgr->get_header(btree->header, btree->btree_option->config);
     btree->btree_page_mgr->get_node(n, btree_node, btree->btree_option);
 
     json output_json;
@@ -597,9 +598,9 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
                     break;
                 }
             }
-            traversal_node_record.push_back(make_pair(now_node->header.traversal_id, child_idx));
 
             if (insert_child_id > -1) {
+                traversal_node_record.push_back(make_pair(now_node->header.traversal_id, child_idx));
                 if (this->NodeMap.find(insert_child_id) == this->NodeMap.end()) {
                     now_node = new BtreeNode();
                     this->btree_page_mgr->get_node(insert_child_id, *now_node, this->btree_option);
@@ -610,10 +611,17 @@ void Btree::insert_key(struct BtreeKey &key, long data_page_pos) {
                 }
                 continue;
             } else {
+                traversal_node_record.push_back(make_pair(now_node->header.traversal_id, child_idx - 1));
                 --cit;
                 --kit;
                 kit->_id = key._id;
-                strncpy(kit->data, key.data, this->btree_option->config.key_field_len);
+                if (this->btree_option->config.key_field_len > 0) {
+                    strncpy(kit->data, key.data, this->btree_option->config.key_field_len);
+                } else {
+                    kit->data = NULL;
+                }
+                this->btree_page_mgr->save_header(this->header, this->btree_option->config);
+                this->btree_page_mgr->save_node(now_node->header.traversal_id, *now_node, this->btree_option);
                 insert_child_id = *cit;
                 if (this->NodeMap.find(insert_child_id) == this->NodeMap.end()) {
                     now_node = new BtreeNode();
@@ -864,6 +872,7 @@ bool BtreePageMgr::get_header(header_data &header, config_data &config) {
     this->seekg(0, ios::beg);
     this->read(reinterpret_cast<char *>(&header), sizeof(header));
     this->read(reinterpret_cast<char *>(&config), sizeof(config));
+    this->header_prefix = sizeof(header_data) + sizeof(config_data);
     return this->gcount() > 0;
 }
 
@@ -939,6 +948,7 @@ bool DataPageMgr::get_header(header_data &header) {
     this->clear();
     this->seekg(0, ios::beg);
     this->read(reinterpret_cast<char *>(&header), sizeof(header));
+    this->header_prefix = sizeof(header_data);
     return this->gcount() > 0;
 }
 
@@ -971,9 +981,7 @@ void DataPageMgr::save_node(const long &n, const json &node, vector<FieldTypeInf
     this->seekp(this->header_prefix + n * sizeof(char) * node_size, ios::beg);
     bool exist = true;
     this->write(reinterpret_cast<char *>(&exist), sizeof(char) * 1);
-    //this->flush(); /// todo
     this->write(node_write_data, sizeof(char) * (node_size-1));
-    //this->flush(); /// todo
     delete [] node_write_data;
 }
 

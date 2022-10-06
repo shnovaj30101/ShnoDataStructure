@@ -27,16 +27,21 @@ void test1() {
 
     json btree_node_json;
     btree_node_json = db_system_ptr->get_btree_node_info("test", "_id", 0);
+    print("{}\n", btree_node_json.dump(4));
     btree_node_json = db_system_ptr->get_btree_node_info("test", "_id", 1);
+    print("{}\n", btree_node_json.dump(4));
     btree_node_json = db_system_ptr->get_btree_node_info("test", "_id", 2);
+    print("{}\n", btree_node_json.dump(4));
+    btree_node_json = db_system_ptr->get_btree_node_info("test", "_id", 3);
+    print("{}\n", btree_node_json.dump(4));
 
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 0);
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 1);
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 2);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 0);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 1);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_str", 2);
 
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 0);
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 1);
-    btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 2);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 0);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 1);
+    //btree_node_json = db_system_ptr->get_btree_node_info("test", "example_id", 2);
 
     delete db_system_ptr;
 }
@@ -58,5 +63,5 @@ void test2() {
 
 int main(int argc, char **argv) {
     test1();
-    test2();
+    //test2();
 }
